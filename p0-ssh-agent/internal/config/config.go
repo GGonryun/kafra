@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
-	"braekhus-go/pkg/types"
+	"p0-ssh-agent/pkg/types"
 )
 
 // Load loads configuration from various sources

@@ -1,2 +1,6 @@
 braekhus
 .claude
+**/bin/
+**/bin/*
+**/jwk.private.json
+**/jwk.public.json

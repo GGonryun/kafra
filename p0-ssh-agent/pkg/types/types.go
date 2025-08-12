@@ -1,10 +1,8 @@
 package types
 
-import "net/http"
-
 // ForwardedRequest represents a request to be forwarded to the target service
 type ForwardedRequest struct {
-	Headers http.Header            `json:"headers"`
+	Headers map[string]interface{} `json:"headers"`
 	Method  string                 `json:"method"`
 	Path    string                 `json:"path"`
 	Params  map[string]interface{} `json:"params"`
@@ -32,6 +30,7 @@ type Config struct {
 	JWKPath      string `json:"jwkPath"`
 	TunnelHost   string `json:"tunnelHost"`
 	TunnelPort   int    `json:"tunnelPort"`
+	TunnelPath   string `json:"tunnelPath"`
 	Insecure     bool   `json:"insecure"`
 }
 
