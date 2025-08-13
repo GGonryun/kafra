@@ -10,6 +10,7 @@ import (
 
 	"p0-ssh-agent/internal/config"
 	"p0-ssh-agent/internal/jwt"
+	"p0-ssh-agent/internal/logging"
 )
 
 // NewKeygenCommand creates the keygen command
@@ -43,31 +44,36 @@ with the P0 backend. The public key will be used for machine registration.`,
 }
 
 func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath string) error {
-	// Setup logging
-	logger := logrus.New()
-	if verbose {
-		logger.SetLevel(logrus.DebugLevel)
+	// Load configuration first to get log path (for logging setup)
+	flagOverrides := map[string]interface{}{
+		"keyPath": keyPath,
+	}
+	
+	var logger *logrus.Logger
+	var finalKeyPath string
+	
+	// Try to load config for logging setup
+	cfg, err := config.LoadWithOverrides(configPath, flagOverrides)
+	if err != nil {
+		// If config loading fails, use basic logging
+		logger = logrus.New()
+		if verbose {
+			logger.SetLevel(logrus.DebugLevel)
+		}
+		logger.WithError(err).Warn("Failed to load configuration, using basic logging")
 	} else {
-		logger.SetLevel(logrus.InfoLevel)
+		// Setup logging with log file from configuration
+		logger = logging.SetupLoggerFromConfig(verbose, cfg)
 	}
 	
 	// Determine key path - prioritize command line flags
-	finalKeyPath := keyPath
+	finalKeyPath = keyPath
 	if finalKeyPath == "" && keygenPath != "" {
 		finalKeyPath = keygenPath // Backward compatibility
 	}
 	
-	// If no key path specified via flags, try to load from config
-	if finalKeyPath == "" {
-		// Create flag overrides map
-		flagOverrides := map[string]interface{}{}
-		
-		// Load configuration from file and apply flag overrides
-		cfg, err := config.LoadWithOverrides(configPath, flagOverrides)
-		if err != nil {
-			logger.WithError(err).Error("Failed to load configuration")
-			return err
-		}
+	// If no key path specified via flags, use config value
+	if finalKeyPath == "" && cfg != nil {
 		finalKeyPath = cfg.KeyPath
 	}
 	

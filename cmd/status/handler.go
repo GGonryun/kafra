@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"p0-ssh-agent/internal/config"
+	"p0-ssh-agent/internal/logging"
 	"p0-ssh-agent/types"
 )
 
@@ -37,17 +38,24 @@ This command provides a comprehensive health check of your P0 SSH Agent installa
 }
 
 func runStatusCheck(verbose bool, configPath string) error {
-	// Setup logging
-	logger := logrus.New()
-	if verbose {
-		logger.SetLevel(logrus.DebugLevel)
-	} else {
-		logger.SetLevel(logrus.InfoLevel)
-	}
-
 	// Default config path if not specified
 	if configPath == "" {
 		configPath = "/etc/p0-ssh-agent/config.yaml"
+	}
+
+	// Load configuration first to get log path (for logging setup)
+	var logger *logrus.Logger
+	cfg, err := config.LoadWithOverrides(configPath, nil)
+	if err != nil {
+		// If config loading fails, use basic logging
+		logger = logrus.New()
+		if verbose {
+			logger.SetLevel(logrus.DebugLevel)
+		}
+		logger.WithError(err).Warn("Failed to load configuration for logging, using basic logging")
+	} else {
+		// Setup logging with log file from configuration
+		logger = logging.SetupLoggerFromConfig(verbose, cfg)
 	}
 
 	logger.WithField("config_path", configPath).Info("🔍 P0 SSH Agent Status Check")
@@ -59,7 +67,15 @@ func runStatusCheck(verbose bool, configPath string) error {
 
 	// Check 1: Configuration file
 	fmt.Print("📝 Configuration file... ")
-	cfg, configValid := checkConfiguration(configPath, logger)
+	var configValid bool
+	if cfg == nil {
+		// Config wasn't loaded successfully earlier, try again for validation
+		cfg, configValid = checkConfiguration(configPath, logger)
+	} else {
+		// Config was loaded successfully for logging, so it's valid
+		configValid = true
+		logger.WithField("config_path", configPath).Debug("Configuration file is valid")
+	}
 	if configValid {
 		fmt.Println("✅ VALID")
 	} else {

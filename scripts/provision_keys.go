@@ -17,8 +17,9 @@ func ProvisionAuthorizedKeys(req ProvisioningRequest, logger *logrus.Logger) Pro
 		"has_pub_key": req.PublicKey != "" && req.PublicKey != "N/A",
 	}).Info("🔑 Provisioning authorized keys")
 
-	// Skip if no public key provided
-	if req.PublicKey == "" || req.PublicKey == "N/A" {
+	// Skip if no public key provided, but only for grant operations
+	// Revoke operations use requestID and don't need the public key
+	if (req.PublicKey == "" || req.PublicKey == "N/A") && req.Action == "grant" {
 		return ProvisioningResult{
 			Success: true,
 			Message: "No public key provided, skipping authorized keys provisioning",

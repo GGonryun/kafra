@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -14,15 +15,22 @@ func LoadWithOverrides(configPath string, flagOverrides map[string]interface{}) 
 	// Initialize viper
 	v := viper.New()
 	
-	// Set config file if provided
+	// Set config file if provided, or determine default config path
 	if configPath != "" {
 		v.SetConfigFile(configPath)
 	} else {
-		v.SetConfigName("p0-ssh-agent")
-		v.SetConfigType("yaml")
-		v.AddConfigPath(".")
-		v.AddConfigPath("$HOME/.p0")
-		v.AddConfigPath("/etc/p0")
+		// Try bootstrap default path first
+		bootstrapConfigPath := "/etc/p0-ssh-agent/config.yaml"
+		if _, err := os.Stat(bootstrapConfigPath); err == nil {
+			v.SetConfigFile(bootstrapConfigPath)
+		} else {
+			// Fallback to legacy search paths for backward compatibility
+			v.SetConfigName("p0-ssh-agent")
+			v.SetConfigType("yaml")
+			v.AddConfigPath(".")
+			v.AddConfigPath("$HOME/.p0")
+			v.AddConfigPath("/etc/p0")
+		}
 	}
 	
 	// Environment variable support

@@ -139,7 +139,7 @@ tunnelHost: "wss://p0.example.com/websocket"  # Replace with your P0 backend URL
 
 # File paths
 keyPath: "/etc/p0-ssh-agent/keys"    # JWT key storage directory
-logPath: "/var/log/p0-ssh-agent"     # Log file directory
+logPath: "/var/log/p0-ssh-agent/service.log"     # Log file path
 
 # Optional: Machine labels for identification
 labels:

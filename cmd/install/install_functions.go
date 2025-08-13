@@ -59,8 +59,8 @@ func createDirectories(cfg *types.Config, serviceUser string, logger *logrus.Log
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 
-		// Set ownership
-		cmd = exec.Command("sudo", "chown", "-R", serviceUser+":"+serviceUser, dir)
+		// Set ownership to root since the service runs as root
+		cmd = exec.Command("sudo", "chown", "-R", "root:root", dir)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to set ownership for %s: %w", dir, err)
 		}
@@ -92,8 +92,8 @@ func generateJWTKeys(keyPath, serviceUser, executablePath string, logger *logrus
 		}
 	}
 
-	// Generate keys as the service user
-	cmd := exec.Command("sudo", "-u", serviceUser, executablePath, "keygen", "--key-path", keyPath)
+	// Generate keys as root since the service runs as root
+	cmd := exec.Command("sudo", executablePath, "keygen", "--key-path", keyPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to generate JWT keys: %w\nOutput: %s", err, string(output))
@@ -108,6 +108,14 @@ func createLogFile(logPath, serviceUser string, logger *logrus.Logger) error {
 	if logPath == "" {
 		logger.Info("No log path specified, using stdout/stderr")
 		return nil
+	}
+
+	// If logPath is a directory, append the default log filename
+	if stat, err := os.Stat(logPath); err == nil && stat.IsDir() {
+		logPath = filepath.Join(logPath, "service.log")
+	} else if filepath.Ext(logPath) == "" {
+		// No file extension, assume it's meant to be a directory
+		logPath = filepath.Join(logPath, "service.log")
 	}
 
 	logger.WithField("log_path", logPath).Info("Creating log file")
@@ -125,8 +133,8 @@ func createLogFile(logPath, serviceUser string, logger *logrus.Logger) error {
 		return fmt.Errorf("failed to create log file %s: %w", logPath, err)
 	}
 
-	// Set ownership
-	cmd = exec.Command("sudo", "chown", serviceUser+":"+serviceUser, logPath)
+	// Set ownership to root since the service runs as root
+	cmd = exec.Command("sudo", "chown", "root:root", logPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to set ownership for log file: %w", err)
 	}
@@ -145,8 +153,8 @@ func createLogFile(logPath, serviceUser string, logger *logrus.Logger) error {
 func registerWithBackend(configPath, serviceUser, executablePath string, logger *logrus.Logger) error {
 	logger.Info("Registering with P0 backend")
 
-	// Run register command as the service user
-	cmd := exec.Command("sudo", "-u", serviceUser, executablePath, "register", "--config", configPath)
+	// Run register command as root since the service runs as root
+	cmd := exec.Command("sudo", executablePath, "register", "--config", configPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("registration failed: %w\nOutput: %s", err, string(output))
@@ -207,7 +215,7 @@ func enableAndStartService(serviceName string, logger *logrus.Logger) error {
 // generateSystemdService generates the systemd service file content
 func generateSystemdService(serviceName, serviceUser, executablePath, configPath string) string {
 	workingDir := filepath.Dir(configPath)
-	
+
 	return fmt.Sprintf(`[Unit]
 Description=P0 SSH Agent - Secure SSH access management
 Documentation=https://docs.p0.com/
@@ -217,8 +225,8 @@ StartLimitInterval=0
 
 [Service]
 Type=simple
-User=%s
-Group=%s
+User=root
+Group=root
 WorkingDirectory=%s
 ExecStart=%s start --config %s
 ExecReload=/bin/kill -HUP $MAINPID
@@ -228,23 +236,18 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=%s
 
-# Security settings
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=%s
-PrivateTmp=true
+# Security settings - relaxed for root service that needs system access
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 
 # Environment
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
-Environment=HOME=%s
+Environment=PATH=/usr/local/bin:/usr/bin:/bin:/sbin:/usr/sbin
+Environment=HOME=/root
 
 [Install]
 WantedBy=multi-user.target
-`, serviceUser, serviceUser, workingDir, executablePath, configPath, serviceName, workingDir, workingDir)
+`, workingDir, executablePath, configPath, serviceName)
 }
 
 // writeServiceFile writes the systemd service file
@@ -281,7 +284,7 @@ func displayInstallationSuccess(serviceName, serviceUser, configPath string) {
 
 	fmt.Println("\n📊 Installation Summary:")
 	fmt.Printf("   ✅ Service Name: %s\n", serviceName)
-	fmt.Printf("   ✅ Service User: %s\n", serviceUser)
+	fmt.Printf("   ✅ Service User: root (for system operations)\n")
 	fmt.Printf("   ✅ Config Path: %s\n", configPath)
 	fmt.Printf("   ✅ Service Status: Running\n")
 
@@ -296,7 +299,7 @@ func displayInstallationSuccess(serviceName, serviceUser, configPath string) {
 	fmt.Println("   1. Check service status to ensure it's running properly")
 	fmt.Println("   2. Monitor logs for any connection issues")
 	fmt.Println("   3. Verify connectivity with your P0 backend")
-	
+
 	fmt.Printf("\n💡 Pro Tip: Use 'p0-ssh-agent status' to validate the installation\n")
 	fmt.Println("\n" + strings.Repeat("=", 60))
 }

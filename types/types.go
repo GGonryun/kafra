@@ -42,6 +42,11 @@ func (c *Config) GetClientID() string {
 	return c.OrgID + ":" + c.HostID + ":ssh"
 }
 
+// GetLogPath returns the log path from the configuration
+func (c *Config) GetLogPath() string {
+	return c.LogPath
+}
+
 // SetClientIDRequest is used for the setClientId RPC call
 type SetClientIDRequest struct {
 	ClientID string `json:"clientId"`

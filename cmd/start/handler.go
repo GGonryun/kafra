@@ -11,6 +11,7 @@ import (
 
 	"p0-ssh-agent/internal/client"
 	"p0-ssh-agent/internal/config"
+	"p0-ssh-agent/internal/logging"
 )
 
 // NewStartCommand creates the start command
@@ -63,15 +64,7 @@ func runStart(
 	keyPath, logPath string, labels []string, environment string,
 	tunnelTimeoutMs int, dryRun bool,
 ) error {
-	// Setup logging
-	logger := logrus.New()
-	if verbose {
-		logger.SetLevel(logrus.DebugLevel)
-	} else {
-		logger.SetLevel(logrus.InfoLevel)
-	}
-
-	// Create flag overrides map
+	// Load configuration first to get log path
 	flagOverrides := map[string]interface{}{
 		"orgId":           orgID,
 		"hostId":          hostID,
@@ -83,13 +76,20 @@ func runStart(
 		"tunnelTimeoutMs": tunnelTimeoutMs,
 		"dryRun":          dryRun,
 	}
-
-	// Load configuration from file and apply flag overrides
+	
 	cfg, err := config.LoadWithOverrides(configPath, flagOverrides)
 	if err != nil {
+		// If config loading fails, use basic logging
+		logger := logrus.New()
+		if verbose {
+			logger.SetLevel(logrus.DebugLevel)
+		}
 		logger.WithError(err).Error("Failed to load configuration")
 		return err
 	}
+
+	// Setup logging with log file from configuration
+	logger := logging.SetupLoggerFromConfig(verbose, cfg)
 
 	// Note: tenantId and hostId validation is now handled by the config validation
 

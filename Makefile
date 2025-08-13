@@ -38,82 +38,109 @@ build-linux:
 # Build for specific distributions with optimized static binaries
 build-ubuntu:
 	@echo "Building $(BINARY_NAME) for Ubuntu (amd64, arm64)..."
-	@mkdir -p $(DIST_DIR)/ubuntu
+	@mkdir -p $(DIST_DIR)/ubuntu/amd64 $(DIST_DIR)/ubuntu/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/ubuntu/$(BINARY_NAME)-ubuntu-amd64 $(CMD_DIR)
+		-o $(DIST_DIR)/ubuntu/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/ubuntu/$(BINARY_NAME)-ubuntu-arm64 $(CMD_DIR)
+		-o $(DIST_DIR)/ubuntu/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 build-debian:
 	@echo "Building $(BINARY_NAME) for Debian (amd64, arm64, arm)..."
-	@mkdir -p $(DIST_DIR)/debian
+	@mkdir -p $(DIST_DIR)/debian/amd64 $(DIST_DIR)/debian/arm64 $(DIST_DIR)/debian/arm
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/debian/$(BINARY_NAME)-debian-amd64 $(CMD_DIR)
+		-o $(DIST_DIR)/debian/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/debian/$(BINARY_NAME)-debian-arm64 $(CMD_DIR)
+		-o $(DIST_DIR)/debian/arm64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/debian/$(BINARY_NAME)-debian-arm $(CMD_DIR)
+		-o $(DIST_DIR)/debian/arm/$(BINARY_NAME) $(CMD_DIR)
 
 build-centos:
 	@echo "Building $(BINARY_NAME) for CentOS/RHEL (amd64, arm64)..."
-	@mkdir -p $(DIST_DIR)/centos
+	@mkdir -p $(DIST_DIR)/centos/amd64 $(DIST_DIR)/centos/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/centos/$(BINARY_NAME)-centos-amd64 $(CMD_DIR)
+		-o $(DIST_DIR)/centos/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/centos/$(BINARY_NAME)-centos-arm64 $(CMD_DIR)
+		-o $(DIST_DIR)/centos/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 build-fedora:
 	@echo "Building $(BINARY_NAME) for Fedora (amd64, arm64)..."
-	@mkdir -p $(DIST_DIR)/fedora
+	@mkdir -p $(DIST_DIR)/fedora/amd64 $(DIST_DIR)/fedora/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/fedora/$(BINARY_NAME)-fedora-amd64 $(CMD_DIR)
+		-o $(DIST_DIR)/fedora/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/fedora/$(BINARY_NAME)-fedora-arm64 $(CMD_DIR)
+		-o $(DIST_DIR)/fedora/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 build-arch:
 	@echo "Building $(BINARY_NAME) for Arch Linux (amd64, arm64)..."
-	@mkdir -p $(DIST_DIR)/arch
+	@mkdir -p $(DIST_DIR)/arch/amd64 $(DIST_DIR)/arch/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/arch/$(BINARY_NAME)-arch-amd64 $(CMD_DIR)
+		-o $(DIST_DIR)/arch/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-o $(DIST_DIR)/arch/$(BINARY_NAME)-arch-arm64 $(CMD_DIR)
+		-o $(DIST_DIR)/arch/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 build-alpine:
 	@echo "Building $(BINARY_NAME) for Alpine Linux (amd64, arm64, arm)..."
-	@mkdir -p $(DIST_DIR)/alpine
+	@mkdir -p $(DIST_DIR)/alpine/amd64 $(DIST_DIR)/alpine/arm64 $(DIST_DIR)/alpine/arm
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
 		-tags 'osusergo netgo static_build' \
-		-o $(DIST_DIR)/alpine/$(BINARY_NAME)-alpine-amd64 $(CMD_DIR)
+		-o $(DIST_DIR)/alpine/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
 		-tags 'osusergo netgo static_build' \
-		-o $(DIST_DIR)/alpine/$(BINARY_NAME)-alpine-arm64 $(CMD_DIR)
+		-o $(DIST_DIR)/alpine/arm64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm CGO_ENABLED=0 go build $(BUILD_FLAGS) \
 		-tags 'osusergo netgo static_build' \
-		-o $(DIST_DIR)/alpine/$(BINARY_NAME)-alpine-arm $(CMD_DIR)
+		-o $(DIST_DIR)/alpine/arm/$(BINARY_NAME) $(CMD_DIR)
 
 build-nixos:
 	@echo "Building $(BINARY_NAME) for NixOS (amd64, arm64)..."
-	@mkdir -p $(DIST_DIR)/nixos
+	@mkdir -p $(DIST_DIR)/nixos/amd64 $(DIST_DIR)/nixos/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
 		-tags 'osusergo netgo static_build' \
-		-o $(DIST_DIR)/nixos/$(BINARY_NAME)-nixos-amd64 $(CMD_DIR)
+		-o $(DIST_DIR)/nixos/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
 		-tags 'osusergo netgo static_build' \
-		-o $(DIST_DIR)/nixos/$(BINARY_NAME)-nixos-arm64 $(CMD_DIR)
+		-o $(DIST_DIR)/nixos/arm64/$(BINARY_NAME) $(CMD_DIR)
+
+# Build for Windows
+build-windows:
+	@echo "Building $(BINARY_NAME) for Windows (amd64, arm64)..."
+	@mkdir -p $(DIST_DIR)/windows/amd64 $(DIST_DIR)/windows/arm64
+	GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-o $(DIST_DIR)/windows/amd64/$(BINARY_NAME).exe $(CMD_DIR)
+	GOOS=windows GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-o $(DIST_DIR)/windows/arm64/$(BINARY_NAME).exe $(CMD_DIR)
+
+# Build for macOS
+build-macos:
+	@echo "Building $(BINARY_NAME) for macOS (amd64, arm64)..."
+	@mkdir -p $(DIST_DIR)/macos/amd64 $(DIST_DIR)/macos/arm64
+	GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-o $(DIST_DIR)/macos/amd64/$(BINARY_NAME) $(CMD_DIR)
+	GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-o $(DIST_DIR)/macos/arm64/$(BINARY_NAME) $(CMD_DIR)
+
+# Build for FreeBSD
+build-freebsd:
+	@echo "Building $(BINARY_NAME) for FreeBSD (amd64, arm64)..."
+	@mkdir -p $(DIST_DIR)/freebsd/amd64 $(DIST_DIR)/freebsd/arm64
+	GOOS=freebsd GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-o $(DIST_DIR)/freebsd/amd64/$(BINARY_NAME) $(CMD_DIR)
+	GOOS=freebsd GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-o $(DIST_DIR)/freebsd/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 # Build for all supported platforms and distributions
-build-all-platforms: build-ubuntu build-debian build-centos build-fedora build-arch build-alpine build-nixos
-	@echo "Built binaries for all supported Linux distributions"
+build-all-platforms: build-ubuntu build-debian build-centos build-fedora build-arch build-alpine build-nixos build-windows build-macos build-freebsd
+	@echo "Built binaries for all supported platforms and distributions"
 	@echo "Binaries available in $(DIST_DIR)/"
 
 # Create distribution packages
 package-all: build-all-platforms
 	@echo "Creating distribution packages..."
 	@mkdir -p $(DIST_DIR)/packages
-	@cd $(DIST_DIR) && for distro in ubuntu debian centos fedora arch alpine nixos; do \
-		if [ -d "$$distro" ]; then \
-			tar -czf packages/$(BINARY_NAME)-$$distro.tar.gz $$distro/; \
-			echo "Created $(DIST_DIR)/packages/$(BINARY_NAME)-$$distro.tar.gz"; \
+	@cd $(DIST_DIR) && for platform in ubuntu debian centos fedora arch alpine nixos windows macos freebsd; do \
+		if [ -d "$$platform" ]; then \
+			tar -czf packages/$(BINARY_NAME)-$$platform.tar.gz $$platform/; \
+			echo "Created $(DIST_DIR)/packages/$(BINARY_NAME)-$$platform.tar.gz"; \
 		fi; \
 	done
 
@@ -162,8 +189,11 @@ help:
 	@echo "  build-arch         - Build optimized binaries for Arch Linux"
 	@echo "  build-alpine       - Build static binaries for Alpine Linux"
 	@echo "  build-nixos        - Build static binaries for NixOS"
-	@echo "  build-all-platforms- Build for all supported Linux distributions"
-	@echo "  package-all        - Create tar.gz packages for all distributions"
+	@echo "  build-windows      - Build binaries for Windows"
+	@echo "  build-macos        - Build binaries for macOS"
+	@echo "  build-freebsd      - Build binaries for FreeBSD"
+	@echo "  build-all-platforms- Build for all supported platforms and distributions"
+	@echo "  package-all        - Create tar.gz packages for all platforms"
 	@echo "  deps               - Install Go module dependencies"
 	@echo "  test               - Run tests"
 	@echo "  clean              - Remove build artifacts and distribution files"
@@ -172,9 +202,15 @@ help:
 	@echo "  dev                - Build development version without optimization"
 	@echo "  help               - Show this help message"
 	@echo ""
-	@echo "Distribution-specific builds support multiple architectures:"
-	@echo "  - Ubuntu/Debian: amd64, arm64, arm (Debian only)"
-	@echo "  - CentOS/Fedora/Arch: amd64, arm64"
-	@echo "  - Alpine/NixOS: amd64, arm64, arm (Alpine only) - fully static builds"
+	@echo "Platform and distribution builds support multiple architectures:"
+	@echo "  Linux distributions:"
+	@echo "    - Ubuntu: amd64, arm64 (organized in /distro/arch/ folders)"
+	@echo "    - Debian: amd64, arm64, arm"
+	@echo "    - CentOS/Fedora/Arch: amd64, arm64"
+	@echo "    - Alpine/NixOS: amd64, arm64, arm (Alpine only) - fully static builds"
+	@echo "  Other platforms:"
+	@echo "    - Windows: amd64, arm64 (.exe extension)"
+	@echo "    - macOS: amd64, arm64"
+	@echo "    - FreeBSD: amd64, arm64"
 	@echo ""
 	@echo "All binaries are built with CGO_ENABLED=0 for maximum compatibility."
