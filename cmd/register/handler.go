@@ -66,6 +66,7 @@ func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest 
 
 	fmt.Printf("📋 System Information:\n")
 	fmt.Printf("   Host ID: %s\n", request.HostID)
+	fmt.Printf("   Client ID: %s\n", request.ClientID)
 	fmt.Printf("   Hostname: %s\n", request.Hostname)
 	fmt.Printf("   Public IP: %s\n", request.PublicIP)
 	fmt.Printf("   Fingerprint: %s\n", request.Fingerprint)

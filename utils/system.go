@@ -362,6 +362,7 @@ func CreateRegistrationRequest(configPath string, logger *logrus.Logger) (*types
 	// Create registration request
 	request := &types.RegistrationRequest{
 		HostID:               cfg.HostID,
+		ClientID:             cfg.GetClientID(),
 		Hostname:             hostname,
 		PublicIP:             publicIP,
 		Fingerprint:          fingerprint,

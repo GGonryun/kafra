@@ -55,6 +55,7 @@ type SetClientIDRequest struct {
 // RegistrationRequest represents the machine registration request
 type RegistrationRequest struct {
 	HostID               string            `json:"hostId"`
+	ClientID             string            `json:"clientId"`
 	Hostname             string            `json:"hostname"`
 	PublicIP             string            `json:"publicIp"`
 	Fingerprint          string            `json:"fingerprint"`
