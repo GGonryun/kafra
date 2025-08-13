@@ -53,14 +53,14 @@ func runRegister(verbose bool, configPath string) error {
 	}
 
 	// Display registration information
-	displayRegistrationInfo(request, encodedRequest, logger)
+	displayRegistrationInfo(request, encodedRequest, configPath, logger)
 
 	return nil
 }
 
 
 // displayRegistrationInfo displays the registration information in a formatted way
-func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest string, logger *logrus.Logger) {
+func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest string, configPath string, logger *logrus.Logger) {
 	fmt.Println("\n🎯 Machine Registration Request Generated")
 	fmt.Println("==========================================")
 
@@ -108,8 +108,21 @@ func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest 
 	fmt.Println("\n💡 Next Steps:")
 	fmt.Println("1. Copy the base64 encoded registration request above")
 	fmt.Println("2. Submit it to your P0 backend for machine registration")
-	fmt.Println("3. Once approved, you can start the agent with:")
-	fmt.Printf("   p0-ssh-agent start --config %s\n", "your-config.yaml")
+	fmt.Println("3. Once registration is APPROVED, start the systemd service:")
+	fmt.Printf("   \033[1msudo systemctl enable p0-ssh-agent\033[0m\n")
+	fmt.Printf("   \033[1msudo systemctl start p0-ssh-agent\033[0m\n")
+	fmt.Println("")
+	fmt.Println("4. Verify the service is running:")
+	fmt.Printf("   \033[1msudo systemctl status p0-ssh-agent\033[0m\n")
+	fmt.Printf("   \033[1msudo journalctl -u p0-ssh-agent -f\033[0m\n")
+
+	fmt.Println("\n🔧 Service Management Commands:")
+	fmt.Println("   Status:  sudo systemctl status p0-ssh-agent")
+	fmt.Println("   Stop:    sudo systemctl stop p0-ssh-agent")
+	fmt.Println("   Start:   sudo systemctl start p0-ssh-agent")
+	fmt.Println("   Restart: sudo systemctl restart p0-ssh-agent")
+	fmt.Println("   Logs:    sudo journalctl -u p0-ssh-agent -f")
 
 	fmt.Println("\n⚠️  IMPORTANT: Keep your JWT keys secure!")
+	fmt.Printf("\n💡 Pro Tip: Use 'p0-ssh-agent status' to validate the installation\n")
 }

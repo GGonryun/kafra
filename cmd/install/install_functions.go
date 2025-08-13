@@ -305,20 +305,11 @@ func displayInstallationSuccess(serviceName, serviceUser, configPath, executable
 	fmt.Printf("   Generate and submit your registration request:\n")
 	fmt.Printf("   \033[1m%s register --config %s\033[0m\n", executablePath, configPath)
 	fmt.Println("")
-	fmt.Println("   This will:")
+	fmt.Println("   The registration command will:")
 	fmt.Println("   • Generate a machine-specific registration code")
 	fmt.Println("   • Display system information (hostname, fingerprint, keys)")
 	fmt.Println("   • Provide a base64-encoded request for your P0 backend")
-
-	fmt.Println("\n🚀 Step 3: Start the Service")
-	fmt.Printf("   Once registration is approved, start the systemd service:\n")
-	fmt.Printf("   \033[1msudo systemctl enable %s\033[0m\n", serviceName)
-	fmt.Printf("   \033[1msudo systemctl start %s\033[0m\n", serviceName)
-
-	fmt.Println("\n✅ Step 4: Verify Operation")
-	fmt.Printf("   Check that the service is running properly:\n")
-	fmt.Printf("   \033[1msudo systemctl status %s\033[0m\n", serviceName)
-	fmt.Printf("   \033[1msudo journalctl -u %s -f\033[0m\n", serviceName)
+	fmt.Println("   • Give you instructions to start the service after approval")
 
 	fmt.Println("\n🔧 Service Management Commands:")
 	fmt.Printf("   Status:  sudo systemctl status %s\n", serviceName)
