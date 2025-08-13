@@ -58,7 +58,7 @@ func runRegister(verbose bool, configPath string) error {
 	publicIP := utils.GetPublicIP(logger)
 	fingerprint := utils.GetMachineFingerprint(logger)
 	fingerprintPublicKey := utils.GetMachinePublicKey(logger)
-	jwkPublicKey, err := getJWKPublicKey(cfg.GetKeyPath(), logger)
+	jwkPublicKey, err := getJWKPublicKey(cfg.KeyPath, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to load JWK public key")
 		return fmt.Errorf("failed to load JWK public key: %w", err)
@@ -74,7 +74,7 @@ func runRegister(verbose bool, configPath string) error {
 		FingerprintPublicKey: fingerprintPublicKey,
 		JWKPublicKey:         jwkPublicKey,
 		EnvironmentID:        cfg.Environment,
-		OrgID:                cfg.GetOrgID(),
+		OrgID:                cfg.OrgID,
 		Labels:               cfg.Labels,
 		Timestamp:            time.Now().UTC().Format(time.RFC3339),
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -49,7 +48,7 @@ type Client struct {
 // New creates a new p0-ssh-agent client
 func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 	jwtManager := jwt.NewManager(logger)
-	if err := jwtManager.LoadKey(config.GetKeyPath()); err != nil {
+	if err := jwtManager.LoadKey(config.KeyPath); err != nil {
 		return nil, fmt.Errorf("failed to load JWT key: %w", err)
 	}
 
@@ -136,16 +135,10 @@ func (c *Client) connectOnce() error {
 		return fmt.Errorf("failed to create JWT: %w", err)
 	}
 
-	// Build WebSocket URL
-	scheme := "ws"
-	if !c.config.Insecure {
-		scheme = "wss"
-	}
-
-	u := url.URL{
-		Scheme: scheme,
-		Host:   fmt.Sprintf("%s:%d", c.config.TunnelHost, c.config.TunnelPort),
-		Path:   c.config.TunnelPath,
+	// Get tunnel host URL (already validated during config load)
+	tunnelURL := c.config.TunnelHost
+	if tunnelURL == "" {
+		return fmt.Errorf("tunnel host URL not configured")
 	}
 
 	// Create headers with authentication
@@ -154,11 +147,11 @@ func (c *Client) connectOnce() error {
 
 	// Establish WebSocket connection
 	c.logger.WithFields(logrus.Fields{
-		"url":     u.String(),
+		"url":     tunnelURL,
 		"headers": map[string]string{"Authorization": "Bearer <redacted>"},
 	}).Debug("Attempting WebSocket connection")
 
-	conn, resp, err := websocket.DefaultDialer.Dial(u.String(), headers)
+	conn, resp, err := websocket.DefaultDialer.Dial(tunnelURL, headers)
 	if err != nil {
 		// Enhanced error logging with HTTP response details
 		if resp != nil {
@@ -200,31 +193,6 @@ func (c *Client) connectOnce() error {
 	return nil
 }
 
-// handleReconnection handles reconnection logic when connection is lost
-func (c *Client) handleReconnection() {
-	// The JSON-RPC connection will handle its own lifecycle
-	// We just need to detect when it's closed and reconnect if not shutdown
-
-	// Wait for the JSON-RPC connection to close
-	c.rpcClient.WaitUntilConnected() // This will block until connected, then return when disconnected
-
-	// Check if we should reconnect
-	c.shutdownMu.RLock()
-	isShutdown := c.isShutdown
-	c.shutdownMu.RUnlock()
-
-	if !isShutdown {
-		c.logger.Info("JSON-RPC connection lost, attempting to reconnect...")
-		go c.connect()
-	}
-}
-
-// sendMessage is no longer needed - JSON-RPC client handles all messaging
-// Kept for backward compatibility but should not be used
-func (c *Client) sendMessage(data []byte) error {
-	return fmt.Errorf("sendMessage deprecated - use JSON-RPC client methods instead")
-}
-
 // handleCallMethod handles the "call" method and executes provisioning scripts
 func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (interface{}, error) {
 	c.logger.Info("🔄 Received 'call' method - processing provisioning request")
@@ -245,22 +213,35 @@ func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (
 	}
 
 	c.logger.WithFields(logrus.Fields{
-		"method":     request.Method,
-		"path":       request.Path,
-		"headers":    logHeaders,
-		"params":     request.Params,
-		"command":    request.Command,
-		"target_url": c.config.TargetURL,
-		"client_id":  c.config.GetClientID(),
-		"has_data":   request.Data != nil,
+		"method":    request.Method,
+		"path":      request.Path,
+		"headers":   logHeaders,
+		"params":    request.Params,
+		"data":      request.Data,
+		"client_id": c.config.GetClientID(),
+		"has_data":  request.Data != nil,
+		"dry_run":   c.config.DryRun,
 	}).Info("📥 P0 SSH Agent received provisioning request")
 
-	// Execute provisioning scripts based on command
+	// Execute provisioning scripts based on command in data
 	var scriptResult scripts.ProvisioningResult
-	if request.Command != "" && request.Data != nil {
-		scriptResult = c.executeProvisioningScript(request.Command, request.Data)
+	var command string
+
+	if request.Data != nil {
+		// Extract command from data object
+		if dataMap, ok := request.Data.(map[string]interface{}); ok {
+			if cmdValue, exists := dataMap["command"]; exists {
+				if cmdStr, ok := cmdValue.(string); ok {
+					command = cmdStr
+				}
+			}
+		}
+	}
+
+	if command != "" && request.Data != nil {
+		scriptResult = scripts.ExecuteScript(command, request.Data, c.config.DryRun, c.logger)
 	} else {
-		// Legacy handling - no command specified
+		// No command specified - just log the request
 		scriptResult = scripts.ProvisioningResult{
 			Success: true,
 			Message: "Request logged - no command specified",
@@ -279,14 +260,14 @@ func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (
 			"success":   true,
 			"message":   scriptResult.Message,
 			"client_id": c.config.GetClientID(),
-			"command":   request.Command,
+			"command":   command,
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 			"status":    "completed",
 		}
 		c.logger.WithFields(logrus.Fields{
-			"command": request.Command,
+			"command": command,
 			"message": scriptResult.Message,
-		}).Info("✅ Provisioning script executed successfully")
+		}).Info("✅ Script executed successfully")
 	} else {
 		response.Status = 500
 		response.StatusText = "Internal Server Error"
@@ -294,70 +275,23 @@ func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (
 			"success":   false,
 			"error":     scriptResult.Error,
 			"client_id": c.config.GetClientID(),
-			"command":   request.Command,
+			"command":   command,
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 			"status":    "failed",
 		}
 		c.logger.WithFields(logrus.Fields{
-			"command": request.Command,
+			"command": command,
 			"error":   scriptResult.Error,
-		}).Error("❌ Provisioning script execution failed")
+		}).Error("❌ Script execution failed")
 	}
 
 	c.logger.WithFields(logrus.Fields{
 		"status":      response.Status,
 		"status_text": response.StatusText,
-		"command":     request.Command,
+		"command":     command,
 	}).Info("📤 P0 SSH Agent sending response")
 
 	return response, nil
-}
-
-// executeProvisioningScript executes the appropriate provisioning script based on command
-func (c *Client) executeProvisioningScript(command string, data interface{}) scripts.ProvisioningResult {
-	// Convert data to ProvisioningRequest
-	dataBytes, err := json.Marshal(data)
-	if err != nil {
-		c.logger.WithError(err).Error("Failed to marshal script data")
-		return scripts.ProvisioningResult{
-			Success: false,
-			Error:   fmt.Sprintf("failed to marshal script data: %v", err),
-		}
-	}
-
-	var req scripts.ProvisioningRequest
-	if err := json.Unmarshal(dataBytes, &req); err != nil {
-		c.logger.WithError(err).Error("Failed to unmarshal script data to ProvisioningRequest")
-		return scripts.ProvisioningResult{
-			Success: false,
-			Error:   fmt.Sprintf("failed to unmarshal ProvisioningRequest: %v", err),
-		}
-	}
-
-	c.logger.WithFields(logrus.Fields{
-		"command":    command,
-		"username":   req.UserName,
-		"action":     req.Action,
-		"request_id": req.RequestID,
-		"sudo":       req.Sudo,
-		"has_key":    req.PublicKey != "" && req.PublicKey != "N/A",
-	}).Info("🚀 Executing provisioning script")
-
-	// Execute the appropriate script function
-	switch scripts.Command(command) {
-	case scripts.CommandProvisionUser:
-		return scripts.ProvisionUser(req, c.logger)
-	case scripts.CommandProvisionAuthorizedKeys:
-		return scripts.ProvisionAuthorizedKeys(req, c.logger)
-	case scripts.CommandProvisionSudo:
-		return scripts.ProvisionSudo(req, c.logger)
-	default:
-		c.logger.WithField("command", command).Error("Unknown provisioning command")
-		return scripts.ProvisioningResult{
-			Success: false,
-			Error:   fmt.Sprintf("unknown command: %s", command),
-		}
-	}
 }
 
 // WaitUntilConnected waits until the client is connected

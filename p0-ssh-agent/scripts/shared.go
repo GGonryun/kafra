@@ -1,6 +1,7 @@
 package scripts
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -176,5 +177,70 @@ func ensureLineInFile(line, filePath string, logger *logrus.Logger) Provisioning
 	return ProvisioningResult{
 		Success: true,
 		Message: fmt.Sprintf("Line added to %s successfully", filePath),
+	}
+}
+
+// ExecuteScript is the common entry point for all provisioning script execution
+// It handles dry-run logic, request validation, and script dispatch
+func ExecuteScript(command string, data interface{}, dryRun bool, logger *logrus.Logger) ProvisioningResult {
+	// Convert data to ProvisioningRequest
+	dataBytes, err := json.Marshal(data)
+	if err != nil {
+		logger.WithError(err).Error("Failed to marshal script data")
+		return ProvisioningResult{
+			Success: false,
+			Error:   fmt.Sprintf("failed to marshal script data: %v", err),
+		}
+	}
+
+	var req ProvisioningRequest
+	if err := json.Unmarshal(dataBytes, &req); err != nil {
+		logger.WithError(err).Error("Failed to unmarshal script data to ProvisioningRequest")
+		return ProvisioningResult{
+			Success: false,
+			Error:   fmt.Sprintf("failed to unmarshal ProvisioningRequest: %v", err),
+		}
+	}
+
+	logger.WithFields(logrus.Fields{
+		"command":    command,
+		"username":   req.UserName,
+		"action":     req.Action,
+		"request_id": req.RequestID,
+		"sudo":       req.Sudo,
+		"has_key":    req.PublicKey != "" && req.PublicKey != "N/A",
+		"dry_run":    dryRun,
+	}).Info("🚀 Executing provisioning script")
+
+	// Check dry-run mode first - skip actual execution if enabled
+	if dryRun {
+		logger.WithFields(logrus.Fields{
+			"command":  command,
+			"username": req.UserName,
+			"action":   req.Action,
+		}).Info("🔍 DRY-RUN: Would execute provisioning script (no actual changes made)")
+		
+		return ProvisioningResult{
+			Success: true,
+			Message: fmt.Sprintf("DRY-RUN: Would execute %s for user %s", command, req.UserName),
+		}
+	}
+
+	// Execute the appropriate script function
+	switch Command(command) {
+	case CommandProvisionUser:
+		return ProvisionUser(req, logger)
+	case CommandProvisionAuthorizedKeys:
+		return ProvisionAuthorizedKeys(req, logger)
+	case CommandProvisionSudo:
+		return ProvisionSudo(req, logger)
+	case CommandProvisionSession:
+		return ProvisionSession(req, logger)
+	default:
+		logger.WithField("command", command).Error("Unknown provisioning command")
+		return ProvisioningResult{
+			Success: false,
+			Error:   fmt.Sprintf("unknown command: %s", command),
+		}
 	}
 }

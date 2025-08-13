@@ -20,18 +20,12 @@ func NewStartCommand(verbose *bool, configPath *string) *cobra.Command {
 		orgID           string
 		hostID          string
 		tunnelHost      string
-		tunnelPort      int
-		tunnelPath      string
-		insecure        bool
 		keyPath         string
 		logPath         string
 		labels          []string
 		environment     string
 		tunnelTimeoutMs int
-
-		// Deprecated flags (for backward compatibility)
-		tenantID string
-		jwkPath  string
+		dryRun          bool
 	)
 
 	cmd := &cobra.Command{
@@ -42,9 +36,9 @@ and logs incoming requests for monitoring and debugging purposes.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runStart(
 				*verbose, *configPath,
-				orgID, hostID, tunnelHost, tunnelPort, tunnelPath,
-				insecure, keyPath, logPath, labels, environment,
-				tunnelTimeoutMs, tenantID, jwkPath,
+				orgID, hostID, tunnelHost,
+				keyPath, logPath, labels, environment,
+				tunnelTimeoutMs, dryRun,
 			)
 		},
 	}
@@ -52,28 +46,22 @@ and logs incoming requests for monitoring and debugging purposes.`,
 	// Start command flags
 	cmd.Flags().StringVar(&orgID, "org-id", "", "Organization identifier (required)")
 	cmd.Flags().StringVar(&hostID, "host-id", "", "Host identifier (required)")
-	cmd.Flags().StringVar(&tunnelHost, "tunnel-host", "", "P0 backend host")
-	cmd.Flags().IntVar(&tunnelPort, "tunnel-port", 0, "P0 backend port")
-	cmd.Flags().StringVar(&tunnelPath, "tunnel-path", "", "WebSocket endpoint path")
-	cmd.Flags().BoolVar(&insecure, "insecure", false, "Use insecure WebSocket connection (ws instead of wss)")
+	cmd.Flags().StringVar(&tunnelHost, "tunnel-host", "", "WebSocket URL (e.g., ws://localhost:8079 or wss://example.ngrok.app)")
 	cmd.Flags().StringVar(&keyPath, "key-path", "", "Path to store JWT key files")
 	cmd.Flags().StringVar(&logPath, "log-path", "", "Path to store log files (for daemon mode)")
 	cmd.Flags().StringSliceVar(&labels, "labels", []string{}, "Machine labels for registration (can be used multiple times)")
 	cmd.Flags().StringVar(&environment, "environment", "", "Environment ID for registration")
 	cmd.Flags().IntVar(&tunnelTimeoutMs, "tunnel-timeout", 0, "Tunnel timeout in milliseconds")
-
-	// Backward compatibility flags
-	cmd.Flags().StringVar(&tenantID, "tenant-id", "", "Tenant identifier (deprecated, use --org-id)")
-	cmd.Flags().StringVar(&jwkPath, "jwk-path", "", "Path to store JWT key files (deprecated, use --key-path)")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Log commands but don't execute them (safe testing mode)")
 
 	return cmd
 }
 
 func runStart(
 	verbose bool, configPath string,
-	orgID, hostID, tunnelHost string, tunnelPort int, tunnelPath string,
-	insecure bool, keyPath, logPath string, labels []string, environment string,
-	tunnelTimeoutMs int, tenantID, jwkPath string,
+	orgID, hostID, tunnelHost string,
+	keyPath, logPath string, labels []string, environment string,
+	tunnelTimeoutMs int, dryRun bool,
 ) error {
 	// Setup logging
 	logger := logrus.New()
@@ -88,17 +76,12 @@ func runStart(
 		"orgId":           orgID,
 		"hostId":          hostID,
 		"tunnelHost":      tunnelHost,
-		"tunnelPort":      tunnelPort,
-		"tunnelPath":      tunnelPath,
-		"insecure":        insecure,
 		"keyPath":         keyPath,
 		"logPath":         logPath,
 		"labels":          labels,
 		"environment":     environment,
 		"tunnelTimeoutMs": tunnelTimeoutMs,
-		// Backward compatibility
-		"tenantId": tenantID,
-		"jwkPath":  jwkPath,
+		"dryRun":          dryRun,
 	}
 
 	// Load configuration from file and apply flag overrides
@@ -118,7 +101,7 @@ func runStart(
 		// Provide helpful guidance for common errors
 		if strings.Contains(err.Error(), "failed to load JWT key") {
 			logger.Error("🔑 Keys not found or invalid! Generate them first:")
-			logger.Errorf("   1. Generate keys: p0-ssh-agent keygen --key-path %s", cfg.GetKeyPath())
+			logger.Errorf("   1. Generate keys: p0-ssh-agent keygen --key-path %s", cfg.KeyPath)
 			logger.Error("   2. Register public key with P0 backend")
 			logger.Error("   3. Run agent again")
 		} else if strings.Contains(err.Error(), "permission denied") {
@@ -144,18 +127,16 @@ func runStart(
 
 	logger.WithFields(logrus.Fields{
 		"version":         cfg.Version,
-		"tenantId":        cfg.TenantID,
+		"orgId":           cfg.OrgID,
 		"hostId":          cfg.HostID,
 		"clientId":        cfg.GetClientID(),
 		"tunnelHost":      cfg.TunnelHost,
-		"tunnelPort":      cfg.TunnelPort,
-		"tunnelPath":      cfg.TunnelPath,
-		"insecure":        cfg.Insecure,
-		"keyPath":         cfg.GetKeyPath(),
+		"keyPath":         cfg.KeyPath,
 		"logPath":         cfg.LogPath,
 		"labels":          cfg.Labels,
 		"environment":     cfg.Environment,
 		"tunnelTimeoutMs": cfg.TunnelTimeoutMs,
+		"dryRun":          cfg.DryRun,
 	}).Info("Starting P0 SSH Agent")
 
 	// Run agent

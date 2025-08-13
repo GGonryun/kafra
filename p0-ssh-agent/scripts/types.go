@@ -23,4 +23,5 @@ const (
 	CommandProvisionUser           Command = "provisionUser"
 	CommandProvisionAuthorizedKeys Command = "provisionAuthorizedKeys"
 	CommandProvisionSudo           Command = "provisionSudo"
+	CommandProvisionSession        Command = "provisionSession"
 )

@@ -65,18 +65,18 @@ func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath 
 		return err
 	}
 	
-	logger.WithField("path", cfg.GetKeyPath()).Info("P0 SSH Agent Key Generator")
+	logger.WithField("path", cfg.KeyPath).Info("P0 SSH Agent Key Generator")
 	
 	// Check if keys already exist
-	privateKeyPath := filepath.Join(cfg.GetKeyPath(), jwt.PrivateKeyFile)
-	publicKeyPath := filepath.Join(cfg.GetKeyPath(), jwt.PublicKeyFile)
+	privateKeyPath := filepath.Join(cfg.KeyPath, jwt.PrivateKeyFile)
+	publicKeyPath := filepath.Join(cfg.KeyPath, jwt.PublicKeyFile)
 	
 	if !force {
 		if _, err := os.Stat(privateKeyPath); err == nil {
 			logger.WithField("path", privateKeyPath).Error("Private key already exists")
 			logger.Error("Use --force to overwrite existing keys")
 			logger.Error("⚠️  WARNING: Overwriting keys will break existing registrations!")
-			return fmt.Errorf("keys already exist at %s", cfg.GetKeyPath())
+			return fmt.Errorf("keys already exist at %s", cfg.KeyPath)
 		}
 	}
 	
@@ -84,7 +84,7 @@ func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath 
 	jwtManager := jwt.NewManager(logger)
 	
 	// Generate new keypair
-	if err := jwtManager.GenerateKeyPair(cfg.GetKeyPath()); err != nil {
+	if err := jwtManager.GenerateKeyPair(cfg.KeyPath); err != nil {
 		logger.WithError(err).Error("Failed to generate keypair")
 		return err
 	}
@@ -97,7 +97,7 @@ func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath 
 	}
 	
 	fmt.Println("\n🔑 JWT Keypair Generated Successfully!")
-	fmt.Printf("📁 Location: %s\n", cfg.GetKeyPath())
+	fmt.Printf("📁 Location: %s\n", cfg.KeyPath)
 	fmt.Printf("🔒 Private Key: %s\n", privateKeyPath)
 	fmt.Printf("🔓 Public Key: %s\n", publicKeyPath)
 	fmt.Println("\n📋 Public Key for Registration:")
@@ -107,7 +107,7 @@ func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath 
 	fmt.Println("\n💡 Next Steps:")
 	fmt.Println("1. Register the public key above with your P0 backend")
 	fmt.Println("2. Keep the private key secure and backed up")
-	fmt.Printf("3. Run: p0-ssh-agent start --tenant-id YOUR_TENANT --host-id YOUR_HOST --key-path %s\n", cfg.GetKeyPath())
+	fmt.Printf("3. Run: p0-ssh-agent start --org-id YOUR_ORG --host-id YOUR_HOST --key-path %s\n", cfg.KeyPath)
 	fmt.Println("\n⚠️  IMPORTANT: Back up these keys! Losing them will require re-registration.")
 	
 	return nil

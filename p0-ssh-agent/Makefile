@@ -2,7 +2,6 @@
 
 # Build configuration
 BINARY_NAME=p0-ssh-agent
-BUILD_DIR=bin
 DIST_DIR=dist
 CMD_DIR=./cmd
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
@@ -21,8 +20,8 @@ all: build
 # Build the unified binary (start, keygen, register commands)
 build:
 	@echo "Building $(BINARY_NAME)..."
-	@mkdir -p $(BUILD_DIR)
-	go build $(BUILD_FLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_DIR)
+	@mkdir -p $(DIST_DIR)
+	go build $(BUILD_FLAGS) -o $(DIST_DIR)/$(BINARY_NAME) $(CMD_DIR)
 
 # Build for Linux distributions (all architectures)
 build-linux:
@@ -132,13 +131,13 @@ test:
 # Clean build artifacts
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -rf $(BUILD_DIR) $(DIST_DIR)
+	rm -rf $(DIST_DIR)
 	go clean
 
 # Install binary to /usr/local/bin
 install: build
 	@echo "Installing binary to /usr/local/bin..."
-	sudo cp $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/
+	sudo cp $(DIST_DIR)/$(BINARY_NAME) /usr/local/bin/
 
 # Uninstall binary from /usr/local/bin
 uninstall:
@@ -148,8 +147,8 @@ uninstall:
 # Development build (no optimization)
 dev:
 	@echo "Building development version..."
-	@mkdir -p $(BUILD_DIR)
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) $(CMD_DIR)
+	@mkdir -p $(DIST_DIR)
+	go build -o $(DIST_DIR)/$(BINARY_NAME) $(CMD_DIR)
 
 # Show help
 help:

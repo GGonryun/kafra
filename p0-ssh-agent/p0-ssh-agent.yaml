@@ -5,15 +5,17 @@
 version: "1.0"
 
 # Client identification (required)
-# The client ID will be automatically composed as: ${tenantId}:${hostId}:ssh
-tenantId: "my-company"
+# The client ID will be automatically composed as: ${orgId}:${hostId}:ssh
+orgId: "my-company"
 hostId: "dev-machine-01"
 
 # Tunnel connection settings
-tunnelHost: "p0.example.com"
-tunnelPort: 8080
-tunnelPath: "/websocket"
-insecure: false
+# Full URL including protocol, host, port, and path
+# Examples:
+#   - ws://localhost:8080/ws (development)
+#   - wss://p0.example.com/websocket (production)
+#   - wss://abc123.ngrok.app (ngrok tunnel)
+tunnelHost: "wss://p0.example.com/websocket"
 
 # Key storage path (unified for both JWT keys and key generation)
 keyPath: "/etc/p0-ssh-agent/keys"

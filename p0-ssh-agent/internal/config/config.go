@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -85,33 +86,39 @@ func Load() (*types.Config, error) {
 // setDefaults sets default configuration values
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("version", "1.0")
-	v.SetDefault("tunnelHost", "localhost")
-	v.SetDefault("tunnelPort", 8080)
-	v.SetDefault("tunnelPath", "/")
-	v.SetDefault("insecure", false)
+	v.SetDefault("tunnelHost", "ws://localhost:8080/ws")
 	v.SetDefault("keyPath", ".")
 	v.SetDefault("logPath", "")
 	v.SetDefault("environment", "default")
 	v.SetDefault("tunnelTimeoutMs", 30000) // 30 seconds default
 	v.SetDefault("labels", []string{})
-	
-	// Backward compatibility defaults
-	v.SetDefault("jwkPath", ".")
-	v.SetDefault("keygenPath", ".")
 }
 
 // validateConfig validates the configuration
 func validateConfig(config *types.Config) error {
+	// Validate tunnel host URL
 	if config.TunnelHost == "" {
 		return fmt.Errorf("tunnelHost is required")
 	}
 	
-	if config.TunnelPort <= 0 || config.TunnelPort > 65535 {
-		return fmt.Errorf("tunnelPort must be between 1 and 65535")
+	// Parse and validate the tunnel URL
+	u, err := url.Parse(config.TunnelHost)
+	if err != nil {
+		return fmt.Errorf("invalid tunnelHost URL: %w", err)
 	}
 	
-	if config.GetKeyPath() == "" {
-		return fmt.Errorf("keyPath (or jwkPath for backward compatibility) is required")
+	// Validate WebSocket scheme
+	if u.Scheme != "ws" && u.Scheme != "wss" {
+		return fmt.Errorf("tunnelHost URL must use ws:// or wss:// scheme, got %q", u.Scheme)
+	}
+	
+	// Validate host
+	if u.Host == "" {
+		return fmt.Errorf("tunnelHost URL must include a host")
+	}
+	
+	if config.KeyPath == "" {
+		return fmt.Errorf("keyPath is required")
 	}
 	
 	if config.TunnelTimeoutMs < 0 {
@@ -119,8 +126,8 @@ func validateConfig(config *types.Config) error {
 	}
 	
 	// Validate that we have required org and host IDs
-	if config.GetOrgID() == "" {
-		return fmt.Errorf("orgId (or tenantId for backward compatibility) is required")
+	if config.OrgID == "" {
+		return fmt.Errorf("orgId is required")
 	}
 	
 	if config.HostID == "" {

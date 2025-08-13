@@ -7,7 +7,6 @@ type ForwardedRequest struct {
 	Path    string                   `json:"path"`
 	Params  map[string]interface{}   `json:"params"`
 	Data    interface{}              `json:"data"`
-	Command string                   `json:"command,omitempty"` // Command type for script execution
 	Options *ForwardedRequestOptions `json:"options,omitempty"`
 }
 
@@ -29,47 +28,18 @@ type Config struct {
 	Version         string   `json:"version" yaml:"version"`
 	OrgID           string   `json:"orgId" yaml:"orgId"`
 	HostID          string   `json:"hostId" yaml:"hostId"`
-	TargetURL       string   `json:"targetUrl" yaml:"targetUrl"`
-	KeyPath         string   `json:"keyPath" yaml:"keyPath"` // Unified path for both JWK and keygen
-	LogPath         string   `json:"logPath" yaml:"logPath"` // Path for daemon log files
-	TunnelHost      string   `json:"tunnelHost" yaml:"tunnelHost"`
-	TunnelPort      int      `json:"tunnelPort" yaml:"tunnelPort"`
-	TunnelPath      string   `json:"tunnelPath" yaml:"tunnelPath"`
-	Insecure        bool     `json:"insecure" yaml:"insecure"`
+	KeyPath         string   `json:"keyPath" yaml:"keyPath"`
+	LogPath         string   `json:"logPath" yaml:"logPath"`
+	TunnelHost      string   `json:"tunnelHost" yaml:"tunnelHost"` // WebSocket URL like ws://localhost:8079 or wss://example.ngrok.app
 	Labels          []string `json:"labels" yaml:"labels"`
 	Environment     string   `json:"environment" yaml:"environment"`
 	TunnelTimeoutMs int      `json:"tunnelTimeoutMs" yaml:"tunnelTimeoutMs"`
-
-	// Deprecated fields (for backward compatibility)
-	TenantID   string `json:"tenantId,omitempty" yaml:"tenantId,omitempty"`
-	JWKPath    string `json:"jwkPath,omitempty" yaml:"jwkPath,omitempty"`
-	KeygenPath string `json:"keygenPath,omitempty" yaml:"keygenPath,omitempty"`
-}
-
-// GetOrgID returns the organization ID, with backward compatibility for tenantId
-func (c *Config) GetOrgID() string {
-	if c.OrgID != "" {
-		return c.OrgID
-	}
-	// Backward compatibility: use TenantID if OrgID is not set
-	return c.TenantID
+	DryRun          bool     `json:"dryRun" yaml:"dryRun"` // If true, log commands but don't execute them
 }
 
 // GetClientID returns the computed client ID in the format ${orgId}:${hostId}:ssh
 func (c *Config) GetClientID() string {
-	return c.GetOrgID() + ":" + c.HostID + ":ssh"
-}
-
-// GetKeyPath returns the unified key path, with backward compatibility
-func (c *Config) GetKeyPath() string {
-	if c.KeyPath != "" {
-		return c.KeyPath
-	}
-	// Backward compatibility: prefer JWKPath over KeygenPath
-	if c.JWKPath != "" {
-		return c.JWKPath
-	}
-	return c.KeygenPath
+	return c.OrgID + ":" + c.HostID + ":ssh"
 }
 
 // SetClientIDRequest is used for the setClientId RPC call
