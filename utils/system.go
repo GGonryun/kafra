@@ -101,7 +101,7 @@ func GetPublicIP(logger *logrus.Logger) string {
 
 		if isValidIP(ip) {
 			logger.WithFields(logrus.Fields{
-				"accessIp": ip,
+				"publicIP": ip,
 				"service":  service,
 			}).Info("🌐 Public IP source: external service")
 			return ip
@@ -113,9 +113,9 @@ func GetPublicIP(logger *logrus.Logger) string {
 		}
 	}
 
-	logger.Warn("All public IP services failed or returned invalid IPs, using fallback")
-	logger.Info("🌐 Public IP source: fallback (all services failed)")
-	return "unknown"
+	logger.Warn("All public IP services failed or returned invalid IPs, no public IP available")
+	logger.Info("🌐 Public IP source: not available (all services failed)")
+	return ""
 }
 
 // GetMachineFingerprint creates a machine fingerprint using SSH host keys
@@ -258,7 +258,7 @@ func getFallbackFingerprint(logger *logrus.Logger) string {
 	if err == nil {
 		logger.Debug("Collecting MAC addresses from network interfaces...")
 		for _, iface := range interfaces {
-			if iface.HardwareAddr != nil && len(iface.HardwareAddr) > 0 {
+			if len(iface.HardwareAddr) > 0 {
 				// Skip loopback and virtual interfaces
 				if iface.Flags&net.FlagLoopback == 0 && !strings.HasPrefix(iface.Name, "docker") {
 					macAddresses = append(macAddresses, iface.HardwareAddr.String())
@@ -333,8 +333,8 @@ func isValidIP(ip string) bool {
 }
 
 // GenerateRegistrationCode creates a registration code combining system information
-func GenerateRegistrationCode(hostname, accessIP, fingerprint, publicKey string) string {
-	parts := []string{hostname, accessIP, fingerprint, publicKey}
+func GenerateRegistrationCode(hostname, publicIP, fingerprint, publicKey string) string {
+	parts := []string{hostname, publicIP, fingerprint, publicKey}
 	return strings.Join(parts, ",")
 }
 
@@ -350,7 +350,7 @@ func CreateRegistrationRequest(configPath string, logger *logrus.Logger) (*types
 
 	// Collect system information using utils functions
 	hostname := GetHostname(logger)
-	accessIp := GetPublicIP(logger)
+	publicIP := GetPublicIP(logger)
 	fingerprint := GetMachineFingerprint(logger)
 	fingerprintPublicKey := GetMachinePublicKey(logger)
 
@@ -365,7 +365,7 @@ func CreateRegistrationRequest(configPath string, logger *logrus.Logger) (*types
 		HostID:               cfg.HostID,
 		ClientID:             cfg.GetClientID(),
 		Hostname:             hostname,
-		AccessIP:             accessIp,
+		PublicIP:             publicIP,
 		Fingerprint:          fingerprint,
 		FingerprintPublicKey: fingerprintPublicKey,
 		JWKPublicKey:         jwkPublicKey,

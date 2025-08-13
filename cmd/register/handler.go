@@ -68,7 +68,11 @@ func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest 
 	fmt.Printf("   Host ID: %s\n", request.HostID)
 	fmt.Printf("   Client ID: %s\n", request.ClientID)
 	fmt.Printf("   Hostname: %s\n", request.Hostname)
-	fmt.Printf("   Access IP: %s\n", request.AccessIP)
+	if request.PublicIP != "" {
+		fmt.Printf("   Public IP: %s\n", request.PublicIP)
+	} else {
+		fmt.Printf("   Public IP: not available\n")
+	}
 	fmt.Printf("   Fingerprint: %s\n", request.Fingerprint)
 	fmt.Printf("   Timestamp: %s\n", request.Timestamp)
 
