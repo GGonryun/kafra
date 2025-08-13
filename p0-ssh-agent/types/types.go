@@ -7,6 +7,7 @@ type ForwardedRequest struct {
 	Path    string                   `json:"path"`
 	Params  map[string]interface{}   `json:"params"`
 	Data    interface{}              `json:"data"`
+	Command string                   `json:"command,omitempty"` // Command type for script execution
 	Options *ForwardedRequestOptions `json:"options,omitempty"`
 }
 
