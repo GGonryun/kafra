@@ -277,7 +277,7 @@ func writeServiceFile(filePath, content string, logger *logrus.Logger) error {
 }
 
 // displayInstallationSuccess shows the success message and next steps
-func displayInstallationSuccess(serviceName, serviceUser, configPath string) {
+func displayInstallationSuccess(serviceName, serviceUser, configPath, registrationCode string) {
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("🎉 P0 SSH Agent Installation Complete!")
 	fmt.Println(strings.Repeat("=", 60))
@@ -299,6 +299,27 @@ func displayInstallationSuccess(serviceName, serviceUser, configPath string) {
 	fmt.Println("   1. Check service status to ensure it's running properly")
 	fmt.Println("   2. Monitor logs for any connection issues")
 	fmt.Println("   3. Verify connectivity with your P0 backend")
+
+	// Display registration code if available
+	if registrationCode != "" {
+		fmt.Println("\n📦 Machine Registration Code:")
+		fmt.Println(strings.Repeat("=", 60))
+		
+		// Print in chunks for readability
+		const chunkSize = 80
+		for i := 0; i < len(registrationCode); i += chunkSize {
+			end := i + chunkSize
+			if end > len(registrationCode) {
+				end = len(registrationCode)
+			}
+			fmt.Println(registrationCode[i:end])
+		}
+		
+		fmt.Println("\n📋 Registration Instructions:")
+		fmt.Println("1. Copy the base64 encoded registration code above")
+		fmt.Println("2. Submit it to your P0 backend for machine registration")
+		fmt.Println("3. Once approved, the agent will automatically start serving requests")
+	}
 
 	fmt.Printf("\n💡 Pro Tip: Use 'p0-ssh-agent status' to validate the installation\n")
 	fmt.Println("\n" + strings.Repeat("=", 60))

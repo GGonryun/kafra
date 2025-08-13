@@ -3,15 +3,21 @@ package utils
 import (
 	"crypto/sha256"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
+
+	"p0-ssh-agent/internal/config"
+	"p0-ssh-agent/internal/jwt"
+	"p0-ssh-agent/types"
 )
 
 const (
@@ -329,4 +335,89 @@ func isValidIP(ip string) bool {
 func GenerateRegistrationCode(hostname, publicIP, fingerprint, publicKey string) string {
 	parts := []string{hostname, publicIP, fingerprint, publicKey}
 	return strings.Join(parts, ",")
+}
+
+// CreateRegistrationRequest creates a complete registration request with system information
+func CreateRegistrationRequest(configPath string, logger *logrus.Logger) (*types.RegistrationRequest, error) {
+	logger.Debug("Creating registration request...")
+
+	// Load configuration
+	cfg, err := config.LoadWithOverrides(configPath, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	}
+
+	// Collect system information using utils functions
+	hostname := GetHostname(logger)
+	publicIP := GetPublicIP(logger)
+	fingerprint := GetMachineFingerprint(logger)
+	fingerprintPublicKey := GetMachinePublicKey(logger)
+	
+	// Load JWK public key
+	jwkPublicKey, err := GetJWKPublicKey(cfg.KeyPath, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load JWK public key: %w", err)
+	}
+
+	// Create registration request
+	request := &types.RegistrationRequest{
+		HostID:               cfg.HostID,
+		Hostname:             hostname,
+		PublicIP:             publicIP,
+		Fingerprint:          fingerprint,
+		FingerprintPublicKey: fingerprintPublicKey,
+		JWKPublicKey:         jwkPublicKey,
+		EnvironmentID:        cfg.Environment,
+		OrgID:                cfg.OrgID,
+		Labels:               cfg.Labels,
+		Timestamp:            time.Now().UTC().Format(time.RFC3339),
+	}
+
+	logger.Debug("Registration request created successfully")
+	return request, nil
+}
+
+// GenerateRegistrationRequestCode creates a base64-encoded registration request
+func GenerateRegistrationRequestCode(configPath string, logger *logrus.Logger) (string, error) {
+	request, err := CreateRegistrationRequest(configPath, logger)
+	if err != nil {
+		return "", err
+	}
+
+	// Convert to JSON and base64 encode
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal registration request: %w", err)
+	}
+
+	encodedRequest := base64.StdEncoding.EncodeToString(jsonData)
+	logger.Debug("Registration code generated successfully")
+	
+	return encodedRequest, nil
+}
+
+// GetJWKPublicKey loads and returns the JWK public key
+func GetJWKPublicKey(keyPath string, logger *logrus.Logger) (map[string]string, error) {
+	publicKeyPath := filepath.Join(keyPath, jwt.PublicKeyFile)
+
+	data, err := os.ReadFile(publicKeyPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read public key file: %w", err)
+	}
+
+	var jwk map[string]interface{}
+	if err := json.Unmarshal(data, &jwk); err != nil {
+		return nil, fmt.Errorf("failed to parse JWK: %w", err)
+	}
+
+	// Convert to string map
+	result := make(map[string]string)
+	for k, v := range jwk {
+		if str, ok := v.(string); ok {
+			result[k] = str
+		}
+	}
+
+	logger.WithField("keyPath", publicKeyPath).Debug("Loaded JWK public key")
+	return result, nil
 }

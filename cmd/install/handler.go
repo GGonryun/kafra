@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"p0-ssh-agent/internal/config"
+	"p0-ssh-agent/utils"
 )
 
 // NewInstallCommand creates the install command
@@ -133,8 +134,15 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 		return fmt.Errorf("failed to start service: %w", err)
 	}
 
+	// Generate registration code
+	registrationCode, err := utils.GenerateRegistrationRequestCode(configPath, logger)
+	if err != nil {
+		logger.WithError(err).Warn("Failed to generate registration code")
+		// Don't fail installation if registration code generation fails
+	}
+
 	// Display success message and next steps
-	displayInstallationSuccess(serviceName, serviceUser, configPath)
+	displayInstallationSuccess(serviceName, serviceUser, configPath, registrationCode)
 
 	return nil
 }
