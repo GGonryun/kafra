@@ -16,7 +16,7 @@ import (
 	"p0-ssh-agent/internal/backoff"
 	"p0-ssh-agent/internal/jwt"
 	"p0-ssh-agent/internal/rpc"
-	"p0-ssh-agent/pkg/types"
+	"p0-ssh-agent/types"
 )
 
 const (
@@ -48,7 +48,7 @@ type Client struct {
 // New creates a new p0-ssh-agent client
 func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 	jwtManager := jwt.NewManager(logger)
-	if err := jwtManager.LoadKey(config.JWKPath); err != nil {
+	if err := jwtManager.LoadKey(config.GetKeyPath()); err != nil {
 		return nil, fmt.Errorf("failed to load JWT key: %w", err)
 	}
 	
@@ -79,7 +79,7 @@ func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 	client.rpcClient.SetOnConnected(func() {
 		client.logger.Info("WebSocket connection established, sending setClientId")
 		if _, err := client.rpcClient.Call("setClientId", types.SetClientIDRequest{
-			ClientID: client.config.ClientID,
+			ClientID: client.config.GetClientID(),
 		}); err != nil {
 			client.logger.WithError(err).Error("Failed to set client ID")
 			return
@@ -130,7 +130,7 @@ func (c *Client) connect() error {
 // connectOnce attempts a single connection
 func (c *Client) connectOnce() error {
 	// Create JWT token
-	token, err := c.jwtManager.CreateJWT(c.config.ClientID)
+	token, err := c.jwtManager.CreateJWT(c.config.GetClientID())
 	if err != nil {
 		return fmt.Errorf("failed to create JWT: %w", err)
 	}
@@ -249,7 +249,7 @@ func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (
 		"headers":      logHeaders,
 		"params":       request.Params,
 		"target_url":   c.config.TargetURL,
-		"client_id":    c.config.ClientID,
+		"client_id":    c.config.GetClientID(),
 		"has_data":     request.Data != nil,
 	}).Info("P0 SSH Agent received request - placeholder logging")
 	
@@ -260,7 +260,7 @@ func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (
 		StatusText: "OK",
 		Data: map[string]interface{}{
 			"message":     "P0 SSH Agent received request successfully",
-			"client_id":   c.config.ClientID,
+			"client_id":   c.config.GetClientID(),
 			"method":      request.Method,
 			"path":        request.Path,
 			"timestamp":   time.Now().UTC().Format(time.RFC3339),

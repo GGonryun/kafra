@@ -2,5 +2,7 @@ braekhus
 .claude
 **/bin/
 **/bin/*
+**/dist/
+**/dist/*
 **/jwk.private.json
 **/jwk.public.json

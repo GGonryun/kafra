@@ -1,0 +1,36 @@
+# P0 SSH Agent Configuration File
+# Version 1.0
+
+# Configuration version (for future compatibility)
+version: "1.0"
+
+# Client identification (required)
+# The client ID will be automatically composed as: ${tenantId}:${hostId}:ssh
+tenantId: "my-company"
+hostId: "dev-machine-01"
+
+# Tunnel connection settings
+tunnelHost: "p0.example.com"
+tunnelPort: 8080
+tunnelPath: "/websocket"
+insecure: false
+
+# Key storage path (unified for both JWT keys and key generation)
+keyPath: "/etc/p0-ssh-agent/keys"
+
+# Log file path for daemon mode (leave empty for stdout/stderr only)
+logPath: "/var/log/p0-ssh-agent"
+
+# Machine labels for registration (optional) - automatically included in registration
+# These can be overridden by the --labels command line flag
+labels:
+  - "type=development" # Machine type
+  - "owner=local-admin" # Owner/administrator
+  - "auth=file-based" # Authentication method
+  - "location=on-premises" # Physical location
+
+# Environment ID for registration (default: "default")
+environment: "development"
+
+# Tunnel timeout in milliseconds
+tunnelTimeoutMs: 30000
