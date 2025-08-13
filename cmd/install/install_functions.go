@@ -277,7 +277,7 @@ func writeServiceFile(filePath, content string, logger *logrus.Logger) error {
 }
 
 // displayInstallationSuccess shows the success message and next steps
-func displayInstallationSuccess(serviceName, serviceUser, configPath, registrationCode string) {
+func displayInstallationSuccess(serviceName, serviceUser, configPath, registrationCode, executablePath string) {
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("🎉 P0 SSH Agent Installation Complete!")
 	fmt.Println(strings.Repeat("=", 60))
@@ -295,10 +295,23 @@ func displayInstallationSuccess(serviceName, serviceUser, configPath, registrati
 	fmt.Printf("   Restart: sudo systemctl restart %s\n", serviceName)
 	fmt.Printf("   Logs:    sudo journalctl -u %s -f\n", serviceName)
 
-	fmt.Println("\n📋 Next Steps:")
-	fmt.Println("   1. Check service status to ensure it's running properly")
-	fmt.Println("   2. Monitor logs for any connection issues")
-	fmt.Println("   3. Verify connectivity with your P0 backend")
+	fmt.Println("\n📋 Required Next Steps:")
+	fmt.Println("   ⚠️  The service is NOT yet running - you must complete these steps:")
+	fmt.Println("")
+	fmt.Println("   1. Edit the configuration file with your settings:")
+	fmt.Printf("      sudo nano %s\n", configPath)
+	fmt.Println("      Update: orgId, hostId, tunnelHost")
+	fmt.Println("")
+	fmt.Println("   2. Register this node with P0 backend:")
+	fmt.Printf("      %s register --config %s\n", executablePath, configPath)
+	fmt.Println("      (Copy the registration code to your P0 backend)")
+	fmt.Println("")
+	fmt.Println("   3. Start the systemd service:")
+	fmt.Printf("      sudo systemctl enable %s\n", serviceName)
+	fmt.Printf("      sudo systemctl start %s\n", serviceName)
+	fmt.Println("")
+	fmt.Println("   4. Verify the service is running:")
+	fmt.Printf("      sudo systemctl status %s\n", serviceName)
 
 	// Display registration code if available
 	if registrationCode != "" {

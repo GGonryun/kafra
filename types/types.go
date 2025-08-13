@@ -57,7 +57,7 @@ type RegistrationRequest struct {
 	HostID               string            `json:"hostId"`
 	ClientID             string            `json:"clientId"`
 	Hostname             string            `json:"hostname"`
-	PublicIP             string            `json:"publicIp"`
+	AccessIP             string            `json:"accessIp"`
 	Fingerprint          string            `json:"fingerprint"`
 	FingerprintPublicKey string            `json:"fingerprintPublicKey"`
 	JWKPublicKey         map[string]string `json:"jwkPublicKey"`

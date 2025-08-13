@@ -5,7 +5,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"p0-ssh-agent/cmd/bootstrap"
 	"p0-ssh-agent/cmd/command"
 	"p0-ssh-agent/cmd/install"
 	"p0-ssh-agent/cmd/keygen"
@@ -34,7 +33,6 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to configuration file")
 
 	// Add subcommands
-	rootCmd.AddCommand(bootstrap.NewBootstrapCommand(&verbose, &configPath))
 	rootCmd.AddCommand(start.NewStartCommand(&verbose, &configPath))
 	rootCmd.AddCommand(keygen.NewKeygenCommand(&verbose, &configPath))
 	rootCmd.AddCommand(register.NewRegisterCommand(&verbose, &configPath))
