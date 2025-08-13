@@ -26,7 +26,7 @@ type ForwardedResponse struct {
 // Config holds the client configuration
 type Config struct {
 	Version         string   `json:"version" yaml:"version"`
-	TenantID        string   `json:"tenantId" yaml:"tenantId"`
+	OrgID           string   `json:"orgId" yaml:"orgId"`
 	HostID          string   `json:"hostId" yaml:"hostId"`
 	TargetURL       string   `json:"targetUrl" yaml:"targetUrl"`
 	KeyPath         string   `json:"keyPath" yaml:"keyPath"` // Unified path for both JWK and keygen
@@ -40,13 +40,23 @@ type Config struct {
 	TunnelTimeoutMs int      `json:"tunnelTimeoutMs" yaml:"tunnelTimeoutMs"`
 
 	// Deprecated fields (for backward compatibility)
+	TenantID   string `json:"tenantId,omitempty" yaml:"tenantId,omitempty"`
 	JWKPath    string `json:"jwkPath,omitempty" yaml:"jwkPath,omitempty"`
 	KeygenPath string `json:"keygenPath,omitempty" yaml:"keygenPath,omitempty"`
 }
 
-// GetClientID returns the computed client ID in the format ${tenantId}:${hostId}:ssh
+// GetOrgID returns the organization ID, with backward compatibility for tenantId
+func (c *Config) GetOrgID() string {
+	if c.OrgID != "" {
+		return c.OrgID
+	}
+	// Backward compatibility: use TenantID if OrgID is not set
+	return c.TenantID
+}
+
+// GetClientID returns the computed client ID in the format ${orgId}:${hostId}:ssh
 func (c *Config) GetClientID() string {
-	return c.TenantID + ":" + c.HostID + ":ssh"
+	return c.GetOrgID() + ":" + c.HostID + ":ssh"
 }
 
 // GetKeyPath returns the unified key path, with backward compatibility
@@ -75,7 +85,7 @@ type RegistrationRequest struct {
 	FingerprintPublicKey string            `json:"fingerprintPublicKey"`
 	JWKPublicKey         map[string]string `json:"jwkPublicKey"`
 	EnvironmentID        string            `json:"environmentId"`
-	TenantID             string            `json:"tenantId"`
+	OrgID                string            `json:"orgId"`
 	Labels               []string          `json:"labels,omitempty"`
 	Timestamp            string            `json:"timestamp"`
 }

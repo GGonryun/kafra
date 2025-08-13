@@ -37,77 +37,149 @@ var (
 
 // GetHostname returns the system hostname
 func GetHostname(logger *logrus.Logger) string {
+	logger.Debug("Starting hostname collection...")
+	
 	hostname, err := os.Hostname()
 	if err != nil {
-		logger.WithError(err).Warn("Failed to get hostname, using fallback")
+		logger.WithError(err).Warn("Failed to get system hostname from os.Hostname(), using fallback")
+		logger.Info("🏠 Hostname source: fallback (os.Hostname() failed)")
 		return "unknown-host"
 	}
-	logger.WithField("hostname", hostname).Debug("Retrieved hostname")
+	
+	logger.WithField("hostname", hostname).Debug("Successfully retrieved hostname from os.Hostname()")
+	logger.WithField("hostname", hostname).Info("🏠 Hostname source: system (os.Hostname())")
 	return hostname
 }
 
 // GetPublicIP attempts to get the public IP address using multiple services
 func GetPublicIP(logger *logrus.Logger) string {
+	logger.Debug("Starting public IP discovery...")
+	logger.WithField("services", publicIPServices).Debug("Trying public IP services in order")
+	
 	client := &http.Client{Timeout: httpTimeout}
 	
-	for _, service := range publicIPServices {
+	for i, service := range publicIPServices {
+		logger.WithFields(logrus.Fields{
+			"service": service,
+			"attempt": i + 1,
+			"total":   len(publicIPServices),
+		}).Debug("Attempting to get public IP from service")
+		
 		resp, err := client.Get(service)
 		if err != nil {
-			logger.WithError(err).WithField("service", service).Debug("Failed to get public IP from service")
+			logger.WithError(err).WithField("service", service).Warn("Failed to connect to public IP service")
 			continue
 		}
 		defer resp.Body.Close()
 
-		if resp.StatusCode == http.StatusOK {
-			buf := make([]byte, maxResponseSize)
-			n, err := resp.Body.Read(buf)
-			if err != nil && n == 0 {
-				continue
-			}
-			ip := strings.TrimSpace(string(buf[:n]))
-			if isValidIP(ip) {
-				logger.WithField("publicIP", ip).Debug("Retrieved public IP")
-				return ip
-			}
+		if resp.StatusCode != http.StatusOK {
+			logger.WithFields(logrus.Fields{
+				"service":    service,
+				"statusCode": resp.StatusCode,
+			}).Warn("Public IP service returned non-200 status")
+			continue
+		}
+
+		buf := make([]byte, maxResponseSize)
+		n, err := resp.Body.Read(buf)
+		if err != nil && n == 0 {
+			logger.WithError(err).WithField("service", service).Warn("Failed to read response from public IP service")
+			continue
+		}
+		
+		ip := strings.TrimSpace(string(buf[:n]))
+		logger.WithFields(logrus.Fields{
+			"service":  service,
+			"rawIP":    ip,
+		}).Debug("Received IP response from service")
+		
+		if isValidIP(ip) {
+			logger.WithFields(logrus.Fields{
+				"publicIP": ip,
+				"service":  service,
+			}).Info("🌐 Public IP source: external service")
+			return ip
+		} else {
+			logger.WithFields(logrus.Fields{
+				"service":   service,
+				"invalidIP": ip,
+			}).Warn("Received invalid IP address from service")
 		}
 	}
 
-	logger.Warn("Failed to get public IP, using fallback")
+	logger.Warn("All public IP services failed or returned invalid IPs, using fallback")
+	logger.Info("🌐 Public IP source: fallback (all services failed)")
 	return "unknown"
 }
 
 // GetMachineFingerprint creates a machine fingerprint using SSH host keys
 func GetMachineFingerprint(logger *logrus.Logger) string {
+	logger.Debug("Starting machine fingerprint generation...")
+	logger.WithField("sshKeyPaths", sshHostKeyPaths).Debug("Checking SSH host key paths for fingerprinting")
+	
 	// Try to get SSH host key fingerprint
-	for _, keyPath := range sshHostKeyPaths {
+	for i, keyPath := range sshHostKeyPaths {
+		logger.WithFields(logrus.Fields{
+			"keyPath": keyPath,
+			"attempt": i + 1,
+			"total":   len(sshHostKeyPaths),
+		}).Debug("Checking SSH host key path")
+		
 		if fingerprint := getSSHKeyFingerprint(keyPath, logger); fingerprint != "" {
-			logger.WithField("fingerprint", fingerprint).Debug("Generated SSH-based machine fingerprint")
+			logger.WithFields(logrus.Fields{
+				"fingerprint": fingerprint,
+				"keyPath":     keyPath,
+			}).Info("🔑 Fingerprint source: SSH host key")
 			return fingerprint
 		}
 	}
 	
+	logger.Warn("No SSH host keys found or usable, falling back to system-based fingerprint")
 	// Fallback: generate fingerprint from hostname and MAC addresses
 	return getFallbackFingerprint(logger)
 }
 
 // GetMachinePublicKey returns the SSH host public key
 func GetMachinePublicKey(logger *logrus.Logger) string {
-	for _, keyPath := range sshHostKeyPaths {
+	logger.Debug("Starting machine public key collection...")
+	logger.WithField("sshKeyPaths", sshHostKeyPaths).Debug("Checking SSH host key paths for public key")
+	
+	for i, keyPath := range sshHostKeyPaths {
+		logger.WithFields(logrus.Fields{
+			"keyPath": keyPath,
+			"attempt": i + 1,
+			"total":   len(sshHostKeyPaths),
+		}).Debug("Checking SSH host public key path")
+		
 		if _, err := os.Stat(keyPath); err == nil {
+			logger.WithField("keyPath", keyPath).Debug("SSH host key file exists, reading...")
+			
 			data, err := os.ReadFile(keyPath)
 			if err != nil {
-				logger.WithError(err).WithField("keyPath", keyPath).Debug("Failed to read SSH host key")
+				logger.WithError(err).WithField("keyPath", keyPath).Warn("Failed to read SSH host key file")
 				continue
 			}
 			
 			publicKey := strings.TrimSpace(string(data))
 			if publicKey != "" {
-				logger.WithField("keyPath", keyPath).Debug("Retrieved SSH host public key")
+				logger.WithFields(logrus.Fields{
+					"keyPath":   keyPath,
+					"keyLength": len(publicKey),
+					"keyType":   strings.Fields(publicKey)[0], // Usually ssh-rsa, ssh-ed25519, etc.
+				}).Info("🔐 Public key source: SSH host key file")
 				return publicKey
+			} else {
+				logger.WithField("keyPath", keyPath).Warn("SSH host key file is empty")
 			}
+		} else {
+			logger.WithFields(logrus.Fields{
+				"keyPath": keyPath,
+				"error":   err.Error(),
+			}).Debug("SSH host key file does not exist or is not accessible")
 		}
 	}
 	
+	logger.Warn("No SSH host public keys found or readable, falling back to generated key")
 	// Fallback: generate a deterministic key based on machine info
 	return getFallbackPublicKey(logger)
 }
@@ -115,67 +187,136 @@ func GetMachinePublicKey(logger *logrus.Logger) string {
 // getSSHKeyFingerprint extracts SHA256 fingerprint from SSH host key
 func getSSHKeyFingerprint(keyPath string, logger *logrus.Logger) string {
 	if _, err := os.Stat(keyPath); err != nil {
+		logger.WithFields(logrus.Fields{
+			"keyPath": keyPath,
+			"error":   err.Error(),
+		}).Debug("SSH key file does not exist")
 		return ""
 	}
+	
+	logger.WithField("keyPath", keyPath).Debug("SSH key file exists, extracting fingerprint with ssh-keygen")
 	
 	// Use ssh-keygen to get the fingerprint
 	cmd := exec.Command("ssh-keygen", "-l", "-f", keyPath, "-E", "sha256")
 	output, err := cmd.Output()
 	if err != nil {
-		logger.WithError(err).WithField("keyPath", keyPath).Debug("Failed to get SSH key fingerprint")
+		logger.WithError(err).WithFields(logrus.Fields{
+			"keyPath": keyPath,
+			"command": "ssh-keygen -l -f " + keyPath + " -E sha256",
+		}).Debug("ssh-keygen command failed")
 		return ""
 	}
 	
+	outputStr := string(output)
+	logger.WithFields(logrus.Fields{
+		"keyPath":       keyPath,
+		"sshKeygenOut": outputStr,
+	}).Debug("ssh-keygen output received")
+	
 	// Parse output: "2048 SHA256:fingerprint host (RSA)"
-	parts := strings.Fields(string(output))
+	parts := strings.Fields(outputStr)
 	for _, part := range parts {
 		if strings.HasPrefix(part, "SHA256:") {
-			return strings.TrimPrefix(part, "SHA256:")
+			fingerprint := strings.TrimPrefix(part, "SHA256:")
+			logger.WithFields(logrus.Fields{
+				"keyPath":     keyPath,
+				"fingerprint": fingerprint,
+			}).Debug("Successfully extracted SHA256 fingerprint from SSH key")
+			return fingerprint
 		}
 	}
 	
+	logger.WithFields(logrus.Fields{
+		"keyPath": keyPath,
+		"output":  outputStr,
+	}).Warn("Could not parse SHA256 fingerprint from ssh-keygen output")
 	return ""
 }
 
 // getFallbackFingerprint creates a fingerprint from hostname and MAC addresses
 func getFallbackFingerprint(logger *logrus.Logger) string {
-	hostname, _ := os.Hostname()
+	logger.Debug("Generating fallback fingerprint from hostname and MAC addresses...")
+	
+	hostname, err := os.Hostname()
+	if err != nil {
+		logger.WithError(err).Debug("Failed to get hostname for fallback fingerprint")
+		hostname = "unknown"
+	}
+	logger.WithField("hostname", hostname).Debug("Using hostname for fallback fingerprint")
 	
 	// Get MAC addresses
 	interfaces, err := net.Interfaces()
 	var macAddresses []string
+	var skippedInterfaces []string
+	
 	if err == nil {
+		logger.Debug("Collecting MAC addresses from network interfaces...")
 		for _, iface := range interfaces {
 			if iface.HardwareAddr != nil && len(iface.HardwareAddr) > 0 {
 				// Skip loopback and virtual interfaces
 				if iface.Flags&net.FlagLoopback == 0 && !strings.HasPrefix(iface.Name, "docker") {
 					macAddresses = append(macAddresses, iface.HardwareAddr.String())
+					logger.WithFields(logrus.Fields{
+						"interface": iface.Name,
+						"mac":       iface.HardwareAddr.String(),
+					}).Debug("Added MAC address for fingerprint")
+				} else {
+					skippedInterfaces = append(skippedInterfaces, iface.Name)
 				}
 			}
 		}
+		
+		if len(skippedInterfaces) > 0 {
+			logger.WithField("skippedInterfaces", skippedInterfaces).Debug("Skipped loopback/virtual interfaces")
+		}
+		
+		logger.WithFields(logrus.Fields{
+			"macCount":    len(macAddresses),
+			"macList":     macAddresses,
+		}).Debug("Collected MAC addresses for fingerprint")
+	} else {
+		logger.WithError(err).Warn("Failed to get network interfaces for fallback fingerprint")
 	}
 
 	// Create fingerprint from available data
 	data := hostname + strings.Join(macAddresses, "")
 	if data == "" {
+		logger.Warn("No hostname or MAC addresses available, using hardcoded fallback")
 		data = "fallback-fingerprint"
 	}
 
 	hash := sha256.Sum256([]byte(data))
 	fingerprint := fmt.Sprintf("%x", hash)[:32] // Use first 32 chars
 	
-	logger.WithField("fingerprint", fingerprint).Debug("Generated fallback machine fingerprint")
+	logger.WithFields(logrus.Fields{
+		"fingerprint": fingerprint,
+		"sourceData":  fmt.Sprintf("hostname:%s + %d MAC addresses", hostname, len(macAddresses)),
+	}).Info("🔑 Fingerprint source: system fallback (hostname + MAC addresses)")
+	
 	return fingerprint
 }
 
 // getFallbackPublicKey generates a deterministic public key based on machine info
 func getFallbackPublicKey(logger *logrus.Logger) string {
-	hostname, _ := os.Hostname()
+	logger.Debug("Generating fallback public key from machine information...")
+	
+	hostname, err := os.Hostname()
+	if err != nil {
+		logger.WithError(err).Debug("Failed to get hostname for fallback public key")
+		hostname = "unknown"
+	}
+	
 	data := "machine-public-key-" + hostname
 	hash := sha256.Sum256([]byte(data))
 	key := base64.StdEncoding.EncodeToString(hash[:])
 	
-	logger.WithField("publicKey", key[:16]+"...").Debug("Generated fallback public key")
+	logger.WithFields(logrus.Fields{
+		"hostname":     hostname,
+		"keyPreview":   key[:16] + "...",
+		"keyLength":    len(key),
+		"sourceData":   data,
+	}).Info("🔐 Public key source: generated fallback (hostname-based)")
+	
 	return key
 }
 

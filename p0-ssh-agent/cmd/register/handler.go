@@ -74,7 +74,7 @@ func runRegister(verbose bool, configPath string) error {
 		FingerprintPublicKey: fingerprintPublicKey,
 		JWKPublicKey:         jwkPublicKey,
 		EnvironmentID:        cfg.Environment,
-		TenantID:             cfg.TenantID,
+		OrgID:                cfg.GetOrgID(),
 		Labels:               cfg.Labels,
 		Timestamp:            time.Now().UTC().Format(time.RFC3339),
 	}
@@ -133,7 +133,7 @@ func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest 
 	fmt.Printf("   Timestamp: %s\n", request.Timestamp)
 
 	fmt.Printf("\n🏢 Configuration:\n")
-	fmt.Printf("   Tenant ID: %s\n", request.TenantID)
+	fmt.Printf("   Org ID: %s\n", request.OrgID)
 	fmt.Printf("   Environment ID: %s\n", request.EnvironmentID)
 
 	if len(request.Labels) > 0 {

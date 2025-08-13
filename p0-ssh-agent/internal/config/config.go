@@ -118,9 +118,9 @@ func validateConfig(config *types.Config) error {
 		return fmt.Errorf("tunnelTimeoutMs must be non-negative")
 	}
 	
-	// Validate that we have required tenant and host IDs
-	if config.TenantID == "" {
-		return fmt.Errorf("tenantId is required")
+	// Validate that we have required org and host IDs
+	if config.GetOrgID() == "" {
+		return fmt.Errorf("orgId (or tenantId for backward compatibility) is required")
 	}
 	
 	if config.HostID == "" {

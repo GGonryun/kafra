@@ -17,7 +17,7 @@ import (
 func NewStartCommand(verbose *bool, configPath *string) *cobra.Command {
 	var (
 		// Start command flags
-		tenantID        string
+		orgID           string
 		hostID          string
 		tunnelHost      string
 		tunnelPort      int
@@ -30,7 +30,8 @@ func NewStartCommand(verbose *bool, configPath *string) *cobra.Command {
 		tunnelTimeoutMs int
 
 		// Deprecated flags (for backward compatibility)
-		jwkPath string
+		tenantID string
+		jwkPath  string
 	)
 
 	cmd := &cobra.Command{
@@ -41,15 +42,15 @@ and logs incoming requests for monitoring and debugging purposes.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runStart(
 				*verbose, *configPath,
-				tenantID, hostID, tunnelHost, tunnelPort, tunnelPath,
+				orgID, hostID, tunnelHost, tunnelPort, tunnelPath,
 				insecure, keyPath, logPath, labels, environment,
-				tunnelTimeoutMs, jwkPath,
+				tunnelTimeoutMs, tenantID, jwkPath,
 			)
 		},
 	}
 
 	// Start command flags
-	cmd.Flags().StringVar(&tenantID, "tenant-id", "", "Tenant identifier (required)")
+	cmd.Flags().StringVar(&orgID, "org-id", "", "Organization identifier (required)")
 	cmd.Flags().StringVar(&hostID, "host-id", "", "Host identifier (required)")
 	cmd.Flags().StringVar(&tunnelHost, "tunnel-host", "", "P0 backend host")
 	cmd.Flags().IntVar(&tunnelPort, "tunnel-port", 0, "P0 backend port")
@@ -62,6 +63,7 @@ and logs incoming requests for monitoring and debugging purposes.`,
 	cmd.Flags().IntVar(&tunnelTimeoutMs, "tunnel-timeout", 0, "Tunnel timeout in milliseconds")
 
 	// Backward compatibility flags
+	cmd.Flags().StringVar(&tenantID, "tenant-id", "", "Tenant identifier (deprecated, use --org-id)")
 	cmd.Flags().StringVar(&jwkPath, "jwk-path", "", "Path to store JWT key files (deprecated, use --key-path)")
 
 	return cmd
@@ -69,9 +71,9 @@ and logs incoming requests for monitoring and debugging purposes.`,
 
 func runStart(
 	verbose bool, configPath string,
-	tenantID, hostID, tunnelHost string, tunnelPort int, tunnelPath string,
+	orgID, hostID, tunnelHost string, tunnelPort int, tunnelPath string,
 	insecure bool, keyPath, logPath string, labels []string, environment string,
-	tunnelTimeoutMs int, jwkPath string,
+	tunnelTimeoutMs int, tenantID, jwkPath string,
 ) error {
 	// Setup logging
 	logger := logrus.New()
@@ -83,7 +85,7 @@ func runStart(
 
 	// Create flag overrides map
 	flagOverrides := map[string]interface{}{
-		"tenantId":        tenantID,
+		"orgId":           orgID,
 		"hostId":          hostID,
 		"tunnelHost":      tunnelHost,
 		"tunnelPort":      tunnelPort,
@@ -95,7 +97,8 @@ func runStart(
 		"environment":     environment,
 		"tunnelTimeoutMs": tunnelTimeoutMs,
 		// Backward compatibility
-		"jwkPath": jwkPath,
+		"tenantId": tenantID,
+		"jwkPath":  jwkPath,
 	}
 
 	// Load configuration from file and apply flag overrides
