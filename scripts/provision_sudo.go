@@ -15,8 +15,9 @@ func ProvisionSudo(req ProvisioningRequest, logger *logrus.Logger) ProvisioningR
 		"sudo":       req.Sudo,
 	}).Info("⚡ Provisioning sudo access")
 
-	// Skip if sudo not requested
-	if !req.Sudo {
+	// Skip if sudo not requested, but only for grant operations
+	// Revoke operations should always proceed to remove existing sudo access
+	if !req.Sudo && req.Action == "grant" {
 		return ProvisioningResult{
 			Success: true,
 			Message: "Sudo access not requested, skipping sudo provisioning",
