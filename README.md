@@ -30,7 +30,7 @@ mv p0-ssh-agent-linux-amd64 p0-ssh-agent
 ./p0-ssh-agent bootstrap
 
 # 3. Edit configuration with your P0 backend details
-sudo nano /etc/p0-ssh-agent/config.yaml
+sudo vi /etc/p0-ssh-agent/config.yaml
 
 # 4. Complete installation (creates service, generates keys, registers)
 sudo p0-ssh-agent install
@@ -62,6 +62,7 @@ The binary will be created as `dist/p0-ssh-agent`.
 ```
 
 The keygen command will:
+
 - Generate ECDSA P-384 private/public keypair
 - Save `jwk.private.json` and `jwk.public.json`
 - Display the public key for backend registration
@@ -73,17 +74,17 @@ Create a configuration file `config.yaml`:
 
 ```yaml
 version: "1.0"
-orgId: "my-company"                      # Replace with your organization ID
-hostId: "hostname-goes-here"             # Replace with unique host identifier  
-tunnelHost: "wss://p0.example.com/websocket"  # Replace with your P0 backend URL
-keyPath: "/etc/p0-ssh-agent/keys"        # JWT key storage directory
-logPath: "/var/log/p0-ssh-agent"         # Log file directory
+orgId: "my-company" # Replace with your organization ID
+hostId: "hostname-goes-here" # Replace with unique host identifier
+tunnelHost: "wss://p0.example.com/websocket" # Replace with your P0 backend URL
+keyPath: "/etc/p0-ssh-agent/keys" # JWT key storage directory
+logPath: "/var/log/p0-ssh-agent" # Log file directory
 labels:
-  - "environment=production"             # Machine labels for identification
+  - "environment=production" # Machine labels for identification
   - "team=infrastructure"
   - "region=us-west-2"
-environment: "production"                # Environment identifier
-tunnelTimeoutMs: 30000                  # Connection timeout in milliseconds
+environment: "production" # Environment identifier
+tunnelTimeoutMs: 30000 # Connection timeout in milliseconds
 ```
 
 #### 3. Register with Backend
@@ -140,14 +141,17 @@ All commands support these global flags:
 | `-v, --verbose` | Enable verbose logging | `false` |
 
 ### `bootstrap` - Bootstrap Installation (New!)
+
 Bootstrap P0 SSH Agent installation by copying binary and creating default config.
 
 **Usage:**
+
 ```bash
 ./p0-ssh-agent bootstrap
 ```
 
 **What it does:**
+
 - Copies the current executable to `/usr/local/bin/p0-ssh-agent`
 - Creates `/etc/p0-ssh-agent/` directory
 - Generates a default `config.yaml` file with proper permissions
@@ -156,49 +160,55 @@ Bootstrap P0 SSH Agent installation by copying binary and creating default confi
 **Perfect for on-premises deployments** - eliminates the need for separate bootstrap files.
 
 ### `start` - Start the SSH Agent
+
 Start the WebSocket proxy agent that connects to P0 backend.
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--org-id` | Organization identifier (required) | - |
-| `--host-id` | Host identifier (required) | - |
-| `--tunnel-host` | WebSocket URL (e.g., ws://localhost:8079) | - |
-| `--key-path` | Path to store JWT key files | - |
-| `--log-path` | Path to store log files (for daemon mode) | - |
-| `--labels` | Machine labels for registration | - |
-| `--environment` | Environment ID for registration | - |
-| `--tunnel-timeout` | Tunnel timeout in milliseconds | - |
-| `--dry-run` | Log commands but don't execute them | `false` |
+| Flag               | Description                               | Default |
+| ------------------ | ----------------------------------------- | ------- |
+| `--org-id`         | Organization identifier (required)        | -       |
+| `--host-id`        | Host identifier (required)                | -       |
+| `--tunnel-host`    | WebSocket URL (e.g., ws://localhost:8079) | -       |
+| `--key-path`       | Path to store JWT key files               | -       |
+| `--log-path`       | Path to store log files (for daemon mode) | -       |
+| `--labels`         | Machine labels for registration           | -       |
+| `--environment`    | Environment ID for registration           | -       |
+| `--tunnel-timeout` | Tunnel timeout in milliseconds            | -       |
+| `--dry-run`        | Log commands but don't execute them       | `false` |
 
 ### `keygen` - Generate JWT Keys
+
 Generate ECDSA P-384 keypair for JWT authentication.
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--key-path` | Directory to store key files | `.` |
-| `--force` | Overwrite existing keys | `false` |
+| Flag         | Description                  | Default |
+| ------------ | ---------------------------- | ------- |
+| `--key-path` | Directory to store key files | `.`     |
+| `--force`    | Overwrite existing keys      | `false` |
 
 ### `register` - Generate Registration Request
+
 Generate machine registration request for P0 backend.
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--output` | Output format (json or yaml) | `json` |
+| Flag       | Description                  | Default |
+| ---------- | ---------------------------- | ------- |
+| `--output` | Output format (json or yaml) | `json`  |
 
 ### `install` - Install as Systemd Service
+
 Complete P0 SSH Agent installation as a systemd service with full setup.
 
 **Usage:**
+
 ```bash
 sudo p0-ssh-agent install
 ```
 
-| Flag | Description | Default |
-|------|-------------|---------|
+| Flag             | Description                  | Default        |
+| ---------------- | ---------------------------- | -------------- |
 | `--service-name` | Name for the systemd service | `p0-ssh-agent` |
-| `--user` | User to run the service as | `p0-agent` |
+| `--user`         | User to run the service as   | `p0-agent`     |
 
 **What it does (comprehensive setup):**
+
 - Validates configuration file
 - Creates service user (`p0-agent`)
 - Creates directories with proper permissions
@@ -210,36 +220,41 @@ sudo p0-ssh-agent install
 **Perfect for production on-premises deployments.**
 
 ### `status` - Check Installation Status
+
 Comprehensive health check of your P0 SSH Agent installation.
 
 **Usage:**
+
 ```bash
 p0-ssh-agent status
 sudo p0-ssh-agent status  # For full system check
 ```
 
 **Validates:**
+
 - Configuration file validity
-- Service user existence and permissions  
+- Service user existence and permissions
 - JWT key presence and validity
 - Log file accessibility
 - Systemd service status
 - Directory permissions and ownership
 
 ### `command` - Execute Provisioning Scripts
+
 Execute provisioning scripts directly for testing and validation.
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--command` | Command to execute (required) | - |
-| `--username` | Username for the operation (required) | - |
-| `--action` | Action to perform (grant or revoke) | `grant` |
-| `--request-id` | Request ID for tracking | auto-generated |
-| `--public-key` | SSH public key for authorized keys | - |
-| `--sudo` | Grant sudo access | `false` |
-| `--dry-run` | Log commands but don't execute them | `false` |
+| Flag           | Description                           | Default        |
+| -------------- | ------------------------------------- | -------------- |
+| `--command`    | Command to execute (required)         | -              |
+| `--username`   | Username for the operation (required) | -              |
+| `--action`     | Action to perform (grant or revoke)   | `grant`        |
+| `--request-id` | Request ID for tracking               | auto-generated |
+| `--public-key` | SSH public key for authorized keys    | -              |
+| `--sudo`       | Grant sudo access                     | `false`        |
+| `--dry-run`    | Log commands but don't execute them   | `false`        |
 
 #### Available Commands for `command`:
+
 - `provisionUser` - Create/remove user accounts
 - `provisionAuthorizedKeys` - Manage SSH authorized keys
 - `provisionSudo` - Grant/revoke sudo access
@@ -249,12 +264,13 @@ Execute provisioning scripts directly for testing and validation.
 ### On-Premises Node Setup (Recommended)
 
 **Complete automated setup:**
+
 ```bash
 # 1. Bootstrap installation
 ./p0-ssh-agent bootstrap
 
 # 2. Edit configuration with your details
-sudo nano /etc/p0-ssh-agent/config.yaml
+sudo vi /etc/p0-ssh-agent/config.yaml
 # Update: orgId, hostId, tunnelHost
 
 # 3. Complete installation (one command does everything!)
@@ -265,6 +281,7 @@ sudo p0-ssh-agent status
 ```
 
 **Manual setup (if needed):**
+
 ```bash
 # 1. Generate JWT keys
 ./dist/p0-ssh-agent keygen --key-path ~/.p0/keys
@@ -343,18 +360,20 @@ p0-ssh-agent status --verbose
 ### Production On-Premises Deployment
 
 **Recommended approach (bootstrap + install):**
+
 ```bash
-# 1. Bootstrap (copies binary, creates config)  
+# 1. Bootstrap (copies binary, creates config)
 ./p0-ssh-agent bootstrap
 
 # 2. Edit configuration
-sudo nano /etc/p0-ssh-agent/config.yaml
+sudo vi /etc/p0-ssh-agent/config.yaml
 
 # 3. Complete installation (everything automated)
 sudo p0-ssh-agent install
 ```
 
 **Manual approach:**
+
 ```bash
 # Install as systemd service manually
 sudo ./dist/p0-ssh-agent install \
@@ -381,12 +400,14 @@ sudo p0-ssh-agent status
 ## Architecture
 
 ### Authentication Flow
+
 1. Agent loads ECDSA P-384 private key from `jwk.private.json`
 2. Creates JWT token with ES384 algorithm and client ID
 3. Establishes WebSocket connection with `Authorization: Bearer <token>` header
 4. Sends `setClientId` RPC call to register with backend
 
 ### Request Handling
+
 - Receives `call` method requests via JSON-RPC 2.0
 - Extracts commands from request.Data["command"]
 - Executes appropriate provisioning scripts (user, SSH keys, sudo)
@@ -395,6 +416,7 @@ sudo p0-ssh-agent status
 - Filters sensitive headers from logs (e.g., authorization)
 
 ### Connection Management
+
 - Automatic reconnection with exponential backoff (1s to 30s)
 - Graceful shutdown on SIGINT/SIGTERM
 - Connection status monitoring and detailed error reporting
@@ -404,6 +426,7 @@ sudo p0-ssh-agent status
 The p0-ssh-agent binary includes multiple subcommands:
 
 ### Available Commands
+
 - `bootstrap` - Bootstrap installation (copy binary, create config)
 - `start` - Start the WebSocket proxy agent
 - `keygen` - Generate JWT keypair for authentication
@@ -432,12 +455,14 @@ make help      # Show all available targets
 ### Common Issues
 
 **WebSocket connection fails with "bad handshake":**
+
 - Check authentication with `--verbose` flag
 - Verify client ID is registered in backend
 - Ensure JWT keys exist and are readable
 - Test endpoint with: `npx wscat -c ws://localhost:8079/socket`
 
 **"Failed to load JWT key" error:**
+
 ```bash
 # Generate keys first
 ./dist/p0-ssh-agent keygen --key-path ~/.p0/keys
@@ -447,6 +472,7 @@ make help      # Show all available targets
 ```
 
 **Permission denied errors:**
+
 ```bash
 # Create secure key directory
 mkdir -p ~/.p0/keys
@@ -465,8 +491,9 @@ Enable verbose logging to see detailed connection information:
 ```
 
 This shows:
+
 - WebSocket connection attempts with URLs
-- HTTP status codes for failed handshakes  
+- HTTP status codes for failed handshakes
 - JWT token creation (redacted for security)
 - RPC message handling details
 
@@ -500,6 +527,7 @@ sudo p0-ssh-agent status
 ```
 
 The install command automatically:
+
 - Generates systemd service file with security hardening
 - Creates working directories with proper permissions
 - Provides step-by-step installation instructions
@@ -524,16 +552,16 @@ The configuration file uses YAML format with the following structure:
 ```yaml
 # Required fields
 version: "1.0"
-orgId: "organization-name"           # Your organization identifier
-hostId: "machine-hostname"           # Unique host identifier
-tunnelHost: "wss://p0.example.com"   # WebSocket URL (ws:// or wss://)
+orgId: "organization-name" # Your organization identifier
+hostId: "machine-hostname" # Unique host identifier
+tunnelHost: "wss://p0.example.com" # WebSocket URL (ws:// or wss://)
 
 # Optional fields
-keyPath: "/path/to/keys"             # JWT key storage directory
-logPath: "/path/to/logs"             # Log file directory (empty = stdout)
-environment: "production"            # Environment identifier
-tunnelTimeoutMs: 30000               # Connection timeout in milliseconds
-dryRun: false                        # Enable dry-run mode globally
+keyPath: "/path/to/keys" # JWT key storage directory
+logPath: "/path/to/logs" # Log file directory (empty = stdout)
+environment: "production" # Environment identifier
+tunnelTimeoutMs: 30000 # Connection timeout in milliseconds
+dryRun: false # Enable dry-run mode globally
 
 # Machine labels (optional)
 labels:

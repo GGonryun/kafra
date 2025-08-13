@@ -277,7 +277,7 @@ func writeServiceFile(filePath, content string, logger *logrus.Logger) error {
 }
 
 // displayInstallationSuccess shows the success message and next steps
-func displayInstallationSuccess(serviceName, serviceUser, configPath, registrationCode, executablePath string) {
+func displayInstallationSuccess(serviceName, serviceUser, configPath, executablePath string) {
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("🎉 P0 SSH Agent Installation Complete!")
 	fmt.Println(strings.Repeat("=", 60))
@@ -286,54 +286,47 @@ func displayInstallationSuccess(serviceName, serviceUser, configPath, registrati
 	fmt.Printf("   ✅ Service Name: %s\n", serviceName)
 	fmt.Printf("   ✅ Service User: root (for system operations)\n")
 	fmt.Printf("   ✅ Config Path: %s\n", configPath)
-	fmt.Printf("   ✅ Service Status: Running\n")
+	fmt.Printf("   ✅ Systemd Service: Created (not started)\n")
+	fmt.Printf("   ✅ JWT Keys: Generated\n")
 
-	fmt.Println("\n🔧 Service Management:")
+	fmt.Println("\n⚠️  IMPORTANT: Complete These Steps Before Starting the Service")
+	fmt.Println(strings.Repeat("-", 60))
+
+	fmt.Println("\n📝 Step 1: Configure Your Settings")
+	fmt.Printf("   Edit the configuration file to update your organization settings:\n")
+	fmt.Printf("   \033[1msudo vi %s\033[0m\n", configPath)
+	fmt.Println("")
+	fmt.Println("   Required fields to update:")
+	fmt.Println("   • orgId: Your P0 organization ID")
+	fmt.Println("   • hostId: Unique identifier for this machine")
+	fmt.Println("   • tunnelHost: Your P0 backend WebSocket URL")
+
+	fmt.Println("\n🔑 Step 2: Register This Machine")
+	fmt.Printf("   Generate and submit your registration request:\n")
+	fmt.Printf("   \033[1m%s register --config %s\033[0m\n", executablePath, configPath)
+	fmt.Println("")
+	fmt.Println("   This will:")
+	fmt.Println("   • Generate a machine-specific registration code")
+	fmt.Println("   • Display system information (hostname, fingerprint, keys)")
+	fmt.Println("   • Provide a base64-encoded request for your P0 backend")
+
+	fmt.Println("\n🚀 Step 3: Start the Service")
+	fmt.Printf("   Once registration is approved, start the systemd service:\n")
+	fmt.Printf("   \033[1msudo systemctl enable %s\033[0m\n", serviceName)
+	fmt.Printf("   \033[1msudo systemctl start %s\033[0m\n", serviceName)
+
+	fmt.Println("\n✅ Step 4: Verify Operation")
+	fmt.Printf("   Check that the service is running properly:\n")
+	fmt.Printf("   \033[1msudo systemctl status %s\033[0m\n", serviceName)
+	fmt.Printf("   \033[1msudo journalctl -u %s -f\033[0m\n", serviceName)
+
+	fmt.Println("\n🔧 Service Management Commands:")
 	fmt.Printf("   Status:  sudo systemctl status %s\n", serviceName)
 	fmt.Printf("   Stop:    sudo systemctl stop %s\n", serviceName)
 	fmt.Printf("   Start:   sudo systemctl start %s\n", serviceName)
 	fmt.Printf("   Restart: sudo systemctl restart %s\n", serviceName)
 	fmt.Printf("   Logs:    sudo journalctl -u %s -f\n", serviceName)
 
-	fmt.Println("\n📋 Required Next Steps:")
-	fmt.Println("   ⚠️  The service is NOT yet running - you must complete these steps:")
-	fmt.Println("")
-	fmt.Println("   1. Edit the configuration file with your settings:")
-	fmt.Printf("      sudo nano %s\n", configPath)
-	fmt.Println("      Update: orgId, hostId, tunnelHost")
-	fmt.Println("")
-	fmt.Println("   2. Register this node with P0 backend:")
-	fmt.Printf("      %s register --config %s\n", executablePath, configPath)
-	fmt.Println("      (Copy the registration code to your P0 backend)")
-	fmt.Println("")
-	fmt.Println("   3. Start the systemd service:")
-	fmt.Printf("      sudo systemctl enable %s\n", serviceName)
-	fmt.Printf("      sudo systemctl start %s\n", serviceName)
-	fmt.Println("")
-	fmt.Println("   4. Verify the service is running:")
-	fmt.Printf("      sudo systemctl status %s\n", serviceName)
-
-	// Display registration code if available
-	if registrationCode != "" {
-		fmt.Println("\n📦 Machine Registration Code:")
-		fmt.Println(strings.Repeat("=", 60))
-		
-		// Print in chunks for readability
-		const chunkSize = 80
-		for i := 0; i < len(registrationCode); i += chunkSize {
-			end := i + chunkSize
-			if end > len(registrationCode) {
-				end = len(registrationCode)
-			}
-			fmt.Println(registrationCode[i:end])
-		}
-		
-		fmt.Println("\n📋 Registration Instructions:")
-		fmt.Println("1. Copy the base64 encoded registration code above")
-		fmt.Println("2. Submit it to your P0 backend for machine registration")
-		fmt.Println("3. Once approved, the agent will automatically start serving requests")
-	}
-
-	fmt.Printf("\n💡 Pro Tip: Use 'p0-ssh-agent status' to validate the installation\n")
+	fmt.Printf("\n💡 Pro Tip: Use 'p0-ssh-agent status' after starting to validate the installation\n")
 	fmt.Println("\n" + strings.Repeat("=", 60))
 }

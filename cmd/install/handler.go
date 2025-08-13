@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"p0-ssh-agent/internal/config"
-	"p0-ssh-agent/utils"
 )
 
 // NewInstallCommand creates the install command
@@ -76,13 +75,13 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 		return fmt.Errorf("failed to bootstrap: %w", err)
 	}
 
-	// Step 1: Validate and load configuration  
+	// Step 1: Validate and load configuration
 	logger.Info("📝 Step 1: Validating configuration")
 	cfg, err := config.LoadWithOverrides(configPath, nil)
 	if err != nil {
 		logger.WithError(err).Error("Configuration validation failed")
 		logger.Info("💡 Please edit the configuration file and try again:")
-		logger.Info("   sudo nano " + configPath)
+		logger.Info("   sudo vi " + configPath)
 		return fmt.Errorf("configuration validation failed: %w", err)
 	}
 	logger.Info("✅ Configuration validated successfully")
@@ -131,15 +130,8 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 		return fmt.Errorf("failed to create systemd service: %w", err)
 	}
 
-	// Generate registration code
-	registrationCode, err := utils.GenerateRegistrationRequestCode(configPath, logger)
-	if err != nil {
-		logger.WithError(err).Warn("Failed to generate registration code")
-		// Don't fail installation if registration code generation fails
-	}
-
 	// Display success message and next steps
-	displayInstallationSuccess(serviceName, serviceUser, configPath, registrationCode, executablePath)
+	displayInstallationSuccess(serviceName, serviceUser, configPath, executablePath)
 
 	return nil
 }
