@@ -209,6 +209,10 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=%s
 
+# Ensure service runs independently of user sessions  
+RemainAfterExit=no
+KillMode=mixed
+
 # Security settings - relaxed for root service that needs system access
 ProtectKernelTunables=true
 ProtectKernelModules=true
