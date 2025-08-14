@@ -211,6 +211,34 @@ sudo p0-ssh-agent install
 
 **Perfect for production on-premises deployments.**
 
+### `uninstall` - Completely Remove Installation
+
+Remove all P0 SSH Agent components from the system.
+
+**Usage:**
+
+```bash
+sudo p0-ssh-agent uninstall
+```
+
+| Flag             | Description                    | Default        |
+| ---------------- | ------------------------------ | -------------- |
+| `--service-name` | Name of systemd service        | `p0-ssh-agent` |
+| `--user`         | Service user to remove         | `p0-agent`     |
+| `--force`        | Skip confirmation prompts     | `false`        |
+
+**What it removes:**
+
+- Stops and disables systemd service
+- Removes service files and configuration
+- Removes service user and home directory
+- Removes configuration directory (`/etc/p0-ssh-agent/`)
+- Removes log directory (`/var/log/p0-ssh-agent/`)
+- Removes system binary (`/usr/local/bin/p0-ssh-agent`)
+- Cleans up all installation artifacts
+
+**⚠️ WARNING:** This permanently deletes all configuration, keys, and logs.
+
 ### `status` - Check Installation Status
 
 Comprehensive health check of your P0 SSH Agent installation.
@@ -382,6 +410,9 @@ sudo ./dist/p0-ssh-agent install \
 
 # Check installation health
 sudo p0-ssh-agent status
+
+# Completely remove P0 SSH Agent
+sudo p0-ssh-agent uninstall
 ```
 
 ### Help and Documentation
@@ -430,6 +461,7 @@ The p0-ssh-agent binary includes multiple subcommands:
 - `keygen` - Generate JWT keypair for authentication
 - `register` - Generate machine registration request
 - `install` - Complete systemd service installation
+- `uninstall` - Completely remove P0 SSH Agent installation
 - `status` - Check installation health and status
 - `command` - Execute provisioning scripts directly
 - `help` - Show help information

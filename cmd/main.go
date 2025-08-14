@@ -11,6 +11,7 @@ import (
 	"p0-ssh-agent/cmd/register"
 	"p0-ssh-agent/cmd/start"
 	"p0-ssh-agent/cmd/status"
+	"p0-ssh-agent/cmd/uninstall"
 )
 
 var (
@@ -34,6 +35,7 @@ func init() {
 	rootCmd.AddCommand(keygen.NewKeygenCommand(&verbose, &configPath))
 	rootCmd.AddCommand(register.NewRegisterCommand(&verbose, &configPath))
 	rootCmd.AddCommand(install.NewInstallCommand(&verbose, &configPath))
+	rootCmd.AddCommand(uninstall.NewUninstallCommand(&verbose, &configPath))
 	rootCmd.AddCommand(status.NewStatusCommand(&verbose, &configPath))
 	rootCmd.AddCommand(command.NewCommandCommand(&verbose, &configPath))
 }
