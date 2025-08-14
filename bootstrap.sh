@@ -74,7 +74,7 @@ labels:
 
 # Optional: Advanced settings
 environment: "production"
-tunnelTimeoutMs: 30000
+tunnelTimeoutSeconds: 30
 version: "1.0"
 EOF
 

@@ -125,7 +125,7 @@ func runStart(
 		"logPath":         cfg.LogPath,
 		"labels":          cfg.Labels,
 		"environment":     cfg.Environment,
-		"tunnelTimeoutMs": cfg.TunnelTimeoutMs,
+		"tunnelTimeoutSeconds": cfg.TunnelTimeoutSeconds,
 		"dryRun":          cfg.DryRun,
 	}).Info("Starting P0 SSH Agent")
 

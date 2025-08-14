@@ -1,5 +1,9 @@
 package types
 
+import (
+	"time"
+)
+
 type ForwardedRequest struct {
 	Headers map[string]interface{}   `json:"headers"`
 	Method  string                   `json:"method"`
@@ -21,16 +25,17 @@ type ForwardedResponse struct {
 }
 
 type Config struct {
-	Version         string   `json:"version" yaml:"version"`
-	OrgID           string   `json:"orgId" yaml:"orgId"`
-	HostID          string   `json:"hostId" yaml:"hostId"`
-	KeyPath         string   `json:"keyPath" yaml:"keyPath"`
-	LogPath         string   `json:"logPath" yaml:"logPath"`
-	TunnelHost      string   `json:"tunnelHost" yaml:"tunnelHost"`
-	Labels          []string `json:"labels" yaml:"labels"`
-	Environment     string   `json:"environment" yaml:"environment"`
-	TunnelTimeoutMs int      `json:"tunnelTimeoutMs" yaml:"tunnelTimeoutMs"`
-	DryRun          bool     `json:"dryRun" yaml:"dryRun"`
+	Version                  string   `json:"version" yaml:"version"`
+	OrgID                    string   `json:"orgId" yaml:"orgId"`
+	HostID                   string   `json:"hostId" yaml:"hostId"`
+	KeyPath                  string   `json:"keyPath" yaml:"keyPath"`
+	LogPath                  string   `json:"logPath" yaml:"logPath"`
+	TunnelHost               string   `json:"tunnelHost" yaml:"tunnelHost"`
+	Labels                   []string `json:"labels" yaml:"labels"`
+	Environment              string   `json:"environment" yaml:"environment"`
+	TunnelTimeoutSeconds     int      `json:"tunnelTimeoutSeconds" yaml:"tunnelTimeoutSeconds"`
+	HeartbeatIntervalSeconds int      `json:"heartbeatIntervalSeconds" yaml:"heartbeatIntervalSeconds"`
+	DryRun                   bool     `json:"dryRun" yaml:"dryRun"`
 }
 
 func (c *Config) GetClientID() string {
@@ -39,6 +44,14 @@ func (c *Config) GetClientID() string {
 
 func (c *Config) GetLogPath() string {
 	return c.LogPath
+}
+
+func (c *Config) GetHeartbeatInterval() time.Duration {
+	return time.Duration(c.HeartbeatIntervalSeconds) * time.Second
+}
+
+func (c *Config) GetTunnelTimeout() time.Duration {
+	return time.Duration(c.TunnelTimeoutSeconds) * time.Second
 }
 
 type SetClientIDRequest struct {

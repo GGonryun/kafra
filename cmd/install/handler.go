@@ -252,7 +252,8 @@ labels:
 
 # Optional: Advanced settings
 environment: "production"
-tunnelTimeoutMs: 30000
+tunnelTimeoutSeconds: 30
+heartbeatIntervalSeconds: 60
 version: "1.0"
 `
 

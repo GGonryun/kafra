@@ -23,7 +23,6 @@ const (
 	DefaultBackoffStart   = 1 * time.Second
 	DefaultBackoffMax     = 30 * time.Second
 	DefaultRequestTimeout = 30 * time.Second
-	HeartbeatInterval     = 60 * time.Second
 )
 
 type Client struct {
@@ -310,10 +309,11 @@ func (c *Client) Shutdown() {
 }
 
 func (c *Client) startHeartbeat() {
-	ticker := time.NewTicker(HeartbeatInterval)
+	heartbeatInterval := c.config.GetHeartbeatInterval()
+	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 
-	c.logger.WithField("interval", HeartbeatInterval).Info("🫀 Starting heartbeat monitor")
+	c.logger.WithField("interval", heartbeatInterval).Info("🫀 Starting heartbeat monitor")
 
 	for {
 		select {
@@ -428,7 +428,7 @@ func (c *Client) IsConnectionHealthy() bool {
 	}
 
 	timeSinceLastHeartbeat := time.Since(lastHeartbeat)
-	maxAllowedGap := HeartbeatInterval * 2
+	maxAllowedGap := c.config.GetHeartbeatInterval() * 2
 
 	healthy := timeSinceLastHeartbeat < maxAllowedGap
 

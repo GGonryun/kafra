@@ -34,5 +34,9 @@ labels:
 # Environment ID for registration (default: "default")
 environment: "development"
 
-# Tunnel timeout in milliseconds
-tunnelTimeoutMs: 30000
+# Tunnel timeout in seconds
+tunnelTimeoutSeconds: 30
+
+# Heartbeat interval in seconds (default: 60)
+# How often to send keep-alive messages to the server
+heartbeatIntervalSeconds: 60
