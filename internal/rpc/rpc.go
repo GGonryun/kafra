@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sourcegraph/jsonrpc2"
@@ -115,16 +114,10 @@ func (c *Client) AddMethod(method string, handler MethodHandler) {
 func (c *Client) Call(method string, params interface{}) (json.RawMessage, error) {
 	c.mu.RLock()
 	conn := c.conn
-	wsConn := c.wsConn
 	c.mu.RUnlock()
 
 	if conn == nil {
 		return nil, fmt.Errorf("not connected")
-	}
-
-	if wsConn != nil {
-		wsConn.SetReadDeadline(time.Now().Add(30 * time.Second))
-		wsConn.SetWriteDeadline(time.Now().Add(30 * time.Second))
 	}
 
 	var result json.RawMessage
@@ -149,7 +142,11 @@ func isConnectionError(err error) bool {
 		strings.Contains(errStr, "broken pipe") ||
 		strings.Contains(errStr, "reset by peer") ||
 		strings.Contains(errStr, "timeout") ||
-		strings.Contains(errStr, "websocket: close")
+		strings.Contains(errStr, "i/o timeout") ||
+		strings.Contains(errStr, "websocket: close") ||
+		strings.Contains(errStr, "protocol error") ||
+		strings.Contains(errStr, "network is unreachable") ||
+		strings.Contains(errStr, "no route to host")
 }
 
 func (c *Client) WaitUntilConnected() error {

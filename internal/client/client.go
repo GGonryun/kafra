@@ -43,6 +43,8 @@ type Client struct {
 	heartbeatStop chan struct{}
 	lastHeartbeat time.Time
 	heartbeatMu   sync.RWMutex
+	reconnecting  bool
+	reconnectMu   sync.Mutex
 }
 
 func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
@@ -339,7 +341,11 @@ func (c *Client) sendHeartbeat() error {
 	})
 
 	if err != nil {
-		c.logger.WithError(err).Error("🚨 Heartbeat call failed")
+		duration := time.Since(start)
+		c.logger.WithFields(logrus.Fields{
+			"error":    err.Error(),
+			"duration": duration,
+		}).Error("🚨 Heartbeat call failed")
 		return err
 	}
 
@@ -358,7 +364,20 @@ func (c *Client) sendHeartbeat() error {
 }
 
 func (c *Client) forceReconnect() {
-	c.logger.Warn("🔄 Forcing reconnection due to heartbeat failure")
+	c.reconnectMu.Lock()
+	if c.reconnecting {
+		c.reconnectMu.Unlock()
+		c.logger.Debug("🔄 Reconnection already in progress, skipping")
+		return
+	}
+
+	c.reconnecting = true
+	c.reconnectMu.Unlock()
+
+	c.logger.Warn("🔄 Forcing reconnection due to connection failure")
+
+	close(c.heartbeatStop)
+	c.heartbeatStop = make(chan struct{})
 
 	c.connMu.Lock()
 	if c.conn != nil {
@@ -372,6 +391,12 @@ func (c *Client) forceReconnect() {
 	}
 
 	go func() {
+		defer func() {
+			c.reconnectMu.Lock()
+			c.reconnecting = false
+			c.reconnectMu.Unlock()
+		}()
+
 		c.logger.Info("🔄 Starting reconnection process")
 		if err := c.Connect(); err != nil {
 			c.logger.WithError(err).Error("❌ Reconnection failed")

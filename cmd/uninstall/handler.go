@@ -167,6 +167,11 @@ func removeServiceFile(serviceName string, logger *logrus.Logger) error {
 func removeServiceUser(serviceUser string, logger *logrus.Logger) error {
 	logger.WithField("user", serviceUser).Debug("Checking if user exists")
 
+	if serviceUser == "root" {
+		logger.Info("Skipping removal of root user")
+		return nil
+	}
+
 	cmd := exec.Command("id", serviceUser)
 	if err := cmd.Run(); err != nil {
 		logger.Debug("User does not exist")
@@ -176,9 +181,17 @@ func removeServiceUser(serviceUser string, logger *logrus.Logger) error {
 	logger.Info("Removing service user and home directory")
 	cmd = exec.Command("sudo", "userdel", "-r", serviceUser)
 	if err := cmd.Run(); err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 6 {
+			logger.WithField("user", serviceUser).Info("User does not exist or already removed")
+			return nil
+		}
 		logger.WithError(err).Warn("Failed to remove user with home directory, trying without -r flag")
 		cmd = exec.Command("sudo", "userdel", serviceUser)
 		if err := cmd.Run(); err != nil {
+			if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 6 {
+				logger.WithField("user", serviceUser).Info("User does not exist or already removed")
+				return nil
+			}
 			return fmt.Errorf("failed to remove user: %w", err)
 		}
 	}
