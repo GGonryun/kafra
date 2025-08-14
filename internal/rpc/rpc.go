@@ -43,13 +43,17 @@ func (c *Client) SetOnConnected(callback func()) {
 }
 
 func (c *Client) ConnectWebSocket(wsConn *websocket.Conn) error {
+	return c.ConnectWebSocketWithContext(context.Background(), wsConn)
+}
+
+func (c *Client) ConnectWebSocketWithContext(ctx context.Context, wsConn *websocket.Conn) error {
 	c.mu.Lock()
 	c.wsConn = wsConn
 	c.mu.Unlock()
 
 	stream := jsonrpc2websocket.NewObjectStream(wsConn)
 
-	conn := jsonrpc2.NewConn(c.ctx, stream, c)
+	conn := jsonrpc2.NewConn(ctx, stream, c)
 
 	c.mu.Lock()
 	c.conn = conn

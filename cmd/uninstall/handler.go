@@ -64,7 +64,6 @@ func runUninstall(verbose bool, configPath string, serviceName, serviceUser stri
 	if !force {
 		fmt.Printf("⚠️ WARNING: This will completely remove P0 SSH Agent including:\n")
 		fmt.Printf("- Systemd service (%s)\n", serviceName)
-		fmt.Printf("- Service user (%s)\n", serviceUser)
 		fmt.Printf("- Configuration directory (/etc/p0-ssh-agent/)\n")
 		fmt.Printf("- Log files and keys\n")
 		fmt.Printf("- System binary (/usr/local/bin/p0-ssh-agent)\n\n")
@@ -84,7 +83,6 @@ func runUninstall(verbose bool, configPath string, serviceName, serviceUser stri
 	}{
 		{"Stop and disable systemd service", func() error { return stopAndDisableService(serviceName, logger) }},
 		{"Remove systemd service file", func() error { return removeServiceFile(serviceName, logger) }},
-		{"Remove service user", func() error { return removeServiceUser(serviceUser, logger) }},
 		{"Remove configuration directory", func() error { return removeDirectory("/etc/p0-ssh-agent", logger) }},
 		{"Remove log directory", func() error { return removeDirectory("/var/log/p0-ssh-agent", logger) }},
 		{"Remove system binary", func() error { return removeBinary("/usr/local/bin/p0-ssh-agent", logger) }},
@@ -257,7 +255,6 @@ func displayUninstallSummary(hasErrors bool, errors []error) {
 
 	fmt.Println("\n📋 What was removed:")
 	fmt.Println("   🗑️ Systemd service (p0-ssh-agent)")
-	fmt.Println("   🗑️ Service user (p0-agent)")
 	fmt.Println("   🗑️ Configuration directory (/etc/p0-ssh-agent/)")
 	fmt.Println("   🗑️ Log directory (/var/log/p0-ssh-agent/)")
 	fmt.Println("   🗑️ System binary (/usr/local/bin/p0-ssh-agent)")

@@ -179,7 +179,7 @@ func (c *Client) connectOnce() error {
 
 	c.logger.Info("WebSocket connection established, connecting JSON-RPC client")
 
-	if err := c.rpcClient.ConnectWebSocket(conn); err != nil {
+	if err := c.rpcClient.ConnectWebSocketWithContext(c.ctx, conn); err != nil {
 		conn.Close()
 		return fmt.Errorf("failed to connect JSON-RPC client: %w", err)
 	}
@@ -363,6 +363,11 @@ func (c *Client) sendHeartbeat() error {
 	return nil
 }
 
+func (c *Client) resetContext() {
+	c.cancel()
+	c.ctx, c.cancel = context.WithCancel(context.Background())
+}
+
 func (c *Client) forceReconnect() {
 	c.reconnectMu.Lock()
 	if c.reconnecting {
@@ -389,6 +394,8 @@ func (c *Client) forceReconnect() {
 	if err := c.rpcClient.Close(); err != nil {
 		c.logger.WithError(err).Debug("Error closing RPC client during reconnect")
 	}
+
+	c.resetContext()
 
 	go func() {
 		defer func() {
