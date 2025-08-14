@@ -8,7 +8,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ProvisionAuthorizedKeys manages SSH authorized keys for users
 func ProvisionAuthorizedKeys(req ProvisioningRequest, logger *logrus.Logger) ProvisioningResult {
 	logger.WithFields(logrus.Fields{
 		"username":    req.UserName,
@@ -17,8 +16,6 @@ func ProvisionAuthorizedKeys(req ProvisioningRequest, logger *logrus.Logger) Pro
 		"has_pub_key": req.PublicKey != "" && req.PublicKey != "N/A",
 	}).Info("🔑 Provisioning authorized keys")
 
-	// Skip if no public key provided, but only for grant operations
-	// Revoke operations use requestID and don't need the public key
 	if (req.PublicKey == "" || req.PublicKey == "N/A") && req.Action == "grant" {
 		return ProvisioningResult{
 			Success: true,
@@ -26,7 +23,6 @@ func ProvisionAuthorizedKeys(req ProvisioningRequest, logger *logrus.Logger) Pro
 		}
 	}
 
-	// Get user info
 	userInfo, err := user.Lookup(req.UserName)
 	if err != nil {
 		return ProvisioningResult{
@@ -50,7 +46,6 @@ func ProvisionAuthorizedKeys(req ProvisioningRequest, logger *logrus.Logger) Pro
 	}
 }
 
-// grantAuthorizedKey adds an SSH public key to the user's authorized_keys file
 func grantAuthorizedKey(publicKey, requestID, authorizedKeysPath, username string, logger *logrus.Logger) ProvisioningResult {
 	logger.WithFields(logrus.Fields{
 		"path":       authorizedKeysPath,
@@ -69,7 +64,6 @@ func grantAuthorizedKey(publicKey, requestID, authorizedKeysPath, username strin
 	}
 }
 
-// revokeAuthorizedKey removes an SSH public key from the user's authorized_keys file
 func revokeAuthorizedKey(requestID, authorizedKeysPath string, logger *logrus.Logger) ProvisioningResult {
 	logger.WithFields(logrus.Fields{
 		"path":       authorizedKeysPath,

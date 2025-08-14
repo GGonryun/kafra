@@ -20,15 +20,11 @@ import (
 )
 
 const (
-	// DefaultBackoffStart is the default starting backoff duration
 	DefaultBackoffStart = 1 * time.Second
-	// DefaultBackoffMax is the default maximum backoff duration
 	DefaultBackoffMax = 30 * time.Second
-	// DefaultRequestTimeout is the default timeout for forwarded requests
 	DefaultRequestTimeout = 30 * time.Second
 )
 
-// Client represents the p0-ssh-agent client
 type Client struct {
 	config     *types.Config
 	logger     *logrus.Logger
@@ -45,7 +41,6 @@ type Client struct {
 	shutdownMu sync.RWMutex
 }
 
-// New creates a new p0-ssh-agent client
 func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 	jwtManager := jwt.NewManager(logger)
 	if err := jwtManager.LoadKey(config.KeyPath); err != nil {
@@ -69,13 +64,10 @@ func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 		connected:  make(chan struct{}),
 	}
 
-	// Create RPC client
 	client.rpcClient = rpc.NewClient()
 
-	// Register the "call" method with placeholder implementation
 	client.rpcClient.AddMethod("call", client.handleCallMethod)
 
-	// Set up connection callback to call setClientId when WebSocket opens
 	client.rpcClient.SetOnConnected(func() {
 		client.logger.Info("WebSocket connection established, sending setClientId")
 		if _, err := client.rpcClient.Call("setClientId", types.SetClientIDRequest{
@@ -86,7 +78,6 @@ func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 		}
 		client.logger.Info("Client ID set successfully")
 
-		// Signal that we're connected
 		select {
 		case client.connected <- struct{}{}:
 		default:
@@ -96,12 +87,10 @@ func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 	return client, nil
 }
 
-// Connect establishes connection to the server
 func (c *Client) Connect() error {
 	return c.connect()
 }
 
-// connect establishes WebSocket connection with retry logic
 func (c *Client) connect() error {
 	for {
 		c.shutdownMu.RLock()
@@ -127,25 +116,20 @@ func (c *Client) connect() error {
 	}
 }
 
-// connectOnce attempts a single connection
 func (c *Client) connectOnce() error {
-	// Create JWT token
 	token, err := c.jwtManager.CreateJWT(c.config.GetClientID())
 	if err != nil {
 		return fmt.Errorf("failed to create JWT: %w", err)
 	}
 
-	// Get tunnel host URL (already validated during config load)
 	tunnelURL := c.config.TunnelHost
 	if tunnelURL == "" {
 		return fmt.Errorf("tunnel host URL not configured")
 	}
 
-	// Create headers with authentication
 	headers := http.Header{}
 	headers.Set("Authorization", "Bearer "+token)
 
-	// Establish WebSocket connection
 	c.logger.WithFields(logrus.Fields{
 		"url":     tunnelURL,
 		"headers": map[string]string{"Authorization": "Bearer <redacted>"},
@@ -153,7 +137,6 @@ func (c *Client) connectOnce() error {
 
 	conn, resp, err := websocket.DefaultDialer.Dial(tunnelURL, headers)
 	if err != nil {
-		// Enhanced error logging with HTTP response details
 		if resp != nil {
 			c.logger.WithFields(logrus.Fields{
 				"status_code": resp.StatusCode,
@@ -161,7 +144,6 @@ func (c *Client) connectOnce() error {
 				"headers":     resp.Header,
 			}).Error("WebSocket handshake failed with HTTP response")
 
-			// Log specific authentication errors
 			if resp.StatusCode == 401 {
 				c.logger.Error("🔐 Authentication failed - JWT token rejected by server")
 				c.logger.Error("💡 Check: 1) Client ID is registered 2) JWT key is correct 3) Token not expired")
@@ -183,8 +165,6 @@ func (c *Client) connectOnce() error {
 
 	c.logger.Info("WebSocket connection established, connecting JSON-RPC client")
 
-	// Connect the JSON-RPC client to the WebSocket
-	// This will trigger the onConnected callback which sends setClientId
 	if err := c.rpcClient.ConnectWebSocket(conn); err != nil {
 		conn.Close()
 		return fmt.Errorf("failed to connect JSON-RPC client: %w", err)
@@ -193,18 +173,15 @@ func (c *Client) connectOnce() error {
 	return nil
 }
 
-// handleCallMethod handles the "call" method and executes provisioning scripts
 func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (interface{}, error) {
 	c.logger.Info("🔄 Received 'call' method - processing provisioning request")
 
-	// Parse the ForwardedRequest from params
 	var request types.ForwardedRequest
 	if err := json.Unmarshal(params, &request); err != nil {
 		c.logger.WithError(err).Error("Failed to unmarshal params to ForwardedRequest")
 		return nil, fmt.Errorf("failed to unmarshal ForwardedRequest: %w", err)
 	}
 
-	// Log the parsed request (excluding sensitive headers like authorization)
 	logHeaders := make(map[string]interface{})
 	for key, value := range request.Headers {
 		if strings.ToLower(key) != "authorization" {
@@ -223,12 +200,10 @@ func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (
 		"dry_run":   c.config.DryRun,
 	}).Info("📥 P0 SSH Agent received provisioning request")
 
-	// Execute provisioning scripts based on command in data
 	var scriptResult scripts.ProvisioningResult
 	var command string
 
 	if request.Data != nil {
-		// Extract command from data object
 		if dataMap, ok := request.Data.(map[string]interface{}); ok {
 			if cmdValue, exists := dataMap["command"]; exists {
 				if cmdStr, ok := cmdValue.(string); ok {
@@ -241,14 +216,12 @@ func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (
 	if command != "" && request.Data != nil {
 		scriptResult = scripts.ExecuteScript(command, request.Data, c.config.DryRun, c.logger)
 	} else {
-		// No command specified - just log the request
 		scriptResult = scripts.ProvisioningResult{
 			Success: true,
 			Message: "Request logged - no command specified",
 		}
 	}
 
-	// Prepare response based on script execution result
 	response := types.ForwardedResponse{
 		Headers:    map[string]interface{}{"content-type": "application/json"},
 		Status:     200,
@@ -294,12 +267,10 @@ func (c *Client) handleCallMethod(ctx context.Context, params json.RawMessage) (
 	return response, nil
 }
 
-// WaitUntilConnected waits until the client is connected
 func (c *Client) WaitUntilConnected() error {
 	return c.rpcClient.WaitUntilConnected()
 }
 
-// Run runs the client until shutdown
 func (c *Client) Run() error {
 	if err := c.Connect(); err != nil {
 		return err
@@ -309,7 +280,6 @@ func (c *Client) Run() error {
 	return c.ctx.Err()
 }
 
-// Shutdown gracefully shuts down the client
 func (c *Client) Shutdown() {
 	c.shutdownMu.Lock()
 	c.isShutdown = true
@@ -317,7 +287,6 @@ func (c *Client) Shutdown() {
 
 	c.cancel()
 
-	// Close the JSON-RPC client (this will also close the websocket)
 	if err := c.rpcClient.Close(); err != nil {
 		c.logger.WithError(err).Warn("Error closing RPC client")
 	}

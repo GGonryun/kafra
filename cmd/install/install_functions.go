@@ -12,18 +12,15 @@ import (
 	"p0-ssh-agent/types"
 )
 
-// createServiceUser creates the system service user if it doesn't exist
 func createServiceUser(serviceUser, keyPath string, logger *logrus.Logger) error {
 	logger.WithField("user", serviceUser).Info("Creating service user")
 
-	// Check if user already exists
 	cmd := exec.Command("id", serviceUser)
 	if cmd.Run() == nil {
 		logger.WithField("user", serviceUser).Info("✅ Service user already exists")
 		return nil
 	}
 
-	// Create system user
 	cmd = exec.Command("sudo", "useradd",
 		"--system",
 		"--shell", "/bin/false",
@@ -39,7 +36,6 @@ func createServiceUser(serviceUser, keyPath string, logger *logrus.Logger) error
 	return nil
 }
 
-// createDirectories creates necessary directories with proper permissions
 func createDirectories(cfg *types.Config, serviceUser string, logger *logrus.Logger) error {
 	directories := []string{
 		cfg.KeyPath,
@@ -53,19 +49,16 @@ func createDirectories(cfg *types.Config, serviceUser string, logger *logrus.Log
 
 		logger.WithField("dir", dir).Info("Creating directory")
 
-		// Create directory
 		cmd := exec.Command("sudo", "mkdir", "-p", dir)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 
-		// Set ownership to root since the service runs as root
 		cmd = exec.Command("sudo", "chown", "-R", "root:root", dir)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to set ownership for %s: %w", dir, err)
 		}
 
-		// Set permissions
 		cmd = exec.Command("sudo", "chmod", "755", dir)
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to set permissions for %s: %w", dir, err)
@@ -77,11 +70,9 @@ func createDirectories(cfg *types.Config, serviceUser string, logger *logrus.Log
 	return nil
 }
 
-// generateJWTKeys generates JWT keys using the keygen command
 func generateJWTKeys(keyPath, serviceUser, executablePath string, logger *logrus.Logger) error {
 	logger.WithField("key_path", keyPath).Info("Generating JWT keys")
 
-	// Check if keys already exist
 	privateKeyPath := filepath.Join(keyPath, "jwk.private.json")
 	publicKeyPath := filepath.Join(keyPath, "jwk.public.json")
 
@@ -92,7 +83,6 @@ func generateJWTKeys(keyPath, serviceUser, executablePath string, logger *logrus
 		}
 	}
 
-	// Generate keys as root since the service runs as root
 	cmd := exec.Command("sudo", executablePath, "keygen", "--key-path", keyPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -103,43 +93,36 @@ func generateJWTKeys(keyPath, serviceUser, executablePath string, logger *logrus
 	return nil
 }
 
-// createLogFile creates the log file with proper permissions
 func createLogFile(logPath, serviceUser string, logger *logrus.Logger) error {
 	if logPath == "" {
 		logger.Info("No log path specified, using stdout/stderr")
 		return nil
 	}
 
-	// If logPath is a directory, append the default log filename
 	if stat, err := os.Stat(logPath); err == nil && stat.IsDir() {
 		logPath = filepath.Join(logPath, "service.log")
 	} else if filepath.Ext(logPath) == "" {
-		// No file extension, assume it's meant to be a directory
 		logPath = filepath.Join(logPath, "service.log")
 	}
 
 	logger.WithField("log_path", logPath).Info("Creating log file")
 
-	// Create log directory if it doesn't exist
 	logDir := filepath.Dir(logPath)
 	cmd := exec.Command("sudo", "mkdir", "-p", logDir)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to create log directory %s: %w", logDir, err)
 	}
 
-	// Create log file
 	cmd = exec.Command("sudo", "touch", logPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to create log file %s: %w", logPath, err)
 	}
 
-	// Set ownership to root since the service runs as root
 	cmd = exec.Command("sudo", "chown", "root:root", logPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to set ownership for log file: %w", err)
 	}
 
-	// Set permissions (644 - read/write for owner, read for group and others)
 	cmd = exec.Command("sudo", "chmod", "644", logPath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to set permissions for log file: %w", err)
@@ -149,11 +132,9 @@ func createLogFile(logPath, serviceUser string, logger *logrus.Logger) error {
 	return nil
 }
 
-// registerWithBackend attempts to register with the P0 backend
 func registerWithBackend(configPath, serviceUser, executablePath string, logger *logrus.Logger) error {
 	logger.Info("Registering with P0 backend")
 
-	// Run register command as root since the service runs as root
 	cmd := exec.Command("sudo", executablePath, "register", "--config", configPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -164,19 +145,16 @@ func registerWithBackend(configPath, serviceUser, executablePath string, logger 
 	return nil
 }
 
-// createSystemdService creates and installs the systemd service file
 func createSystemdService(serviceName, serviceUser, executablePath, configPath string, logger *logrus.Logger) error {
 	logger.Info("Creating systemd service file")
 
 	serviceContent := generateSystemdService(serviceName, serviceUser, executablePath, configPath)
 	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
 
-	// Write service file
 	if err := writeServiceFile(serviceFilePath, serviceContent, logger); err != nil {
 		return fmt.Errorf("failed to write service file: %w", err)
 	}
 
-	// Reload systemd
 	cmd := exec.Command("sudo", "systemctl", "daemon-reload")
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to reload systemd: %w", err)
@@ -186,23 +164,19 @@ func createSystemdService(serviceName, serviceUser, executablePath, configPath s
 	return nil
 }
 
-// enableAndStartService enables and starts the systemd service
 func enableAndStartService(serviceName string, logger *logrus.Logger) error {
 	logger.WithField("service", serviceName).Info("Enabling and starting service")
 
-	// Enable service
 	cmd := exec.Command("sudo", "systemctl", "enable", serviceName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to enable service: %w", err)
 	}
 
-	// Start service
 	cmd = exec.Command("sudo", "systemctl", "start", serviceName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to start service: %w", err)
 	}
 
-	// Check status
 	cmd = exec.Command("sudo", "systemctl", "is-active", serviceName)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("service failed to start properly: %w", err)
@@ -212,7 +186,6 @@ func enableAndStartService(serviceName string, logger *logrus.Logger) error {
 	return nil
 }
 
-// generateSystemdService generates the systemd service file content
 func generateSystemdService(serviceName, serviceUser, executablePath, configPath string) string {
 	workingDir := filepath.Dir(configPath)
 
@@ -250,23 +223,19 @@ WantedBy=multi-user.target
 `, workingDir, executablePath, configPath, serviceName)
 }
 
-// writeServiceFile writes the systemd service file
 func writeServiceFile(filePath, content string, logger *logrus.Logger) error {
 	logger.WithField("path", filePath).Info("Writing systemd service file")
 
-	// Write to temporary file first
 	tempFile := "/tmp/" + filepath.Base(filePath)
 	if err := os.WriteFile(tempFile, []byte(content), 0644); err != nil {
 		return fmt.Errorf("failed to write temporary file: %w", err)
 	}
 
-	// Move with sudo
 	cmd := exec.Command("sudo", "mv", tempFile, filePath)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to move service file: %w", err)
 	}
 
-	// Set permissions
 	cmd = exec.Command("sudo", "chmod", "644", filePath)
 	if err := cmd.Run(); err != nil {
 		logger.WithError(err).Warn("Failed to set service file permissions")
@@ -276,7 +245,6 @@ func writeServiceFile(filePath, content string, logger *logrus.Logger) error {
 	return nil
 }
 
-// displayInstallationSuccess shows the success message and next steps
 func displayInstallationSuccess(serviceName, serviceUser, configPath, executablePath string) {
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("🎉 P0 SSH Agent Installation Complete!")
@@ -303,7 +271,7 @@ func displayInstallationSuccess(serviceName, serviceUser, configPath, executable
 
 	fmt.Println("\n🔑 Step 2: Register This Machine")
 	fmt.Printf("   Generate and submit your registration request:\n")
-	fmt.Printf("   \033[1m%s register --config %s\033[0m\n", executablePath, configPath)
+	fmt.Printf("   \033[1m%s register --config %s\033[0m\n", "p0-ssh-agent", configPath)
 	fmt.Println("")
 	fmt.Println("   The registration command will:")
 	fmt.Println("   • Generate a machine-specific registration code")

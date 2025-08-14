@@ -16,9 +16,9 @@ A comprehensive SSH access management tool for on-premises nodes that connects t
 
 ## Quick Start (On-Premises Setup)
 
-### Method 1: Single Binary Bootstrap (Recommended)
+### Recommended Installation Process
 
-The easiest way to set up P0 SSH Agent on an on-premises node:
+The complete setup process for P0 SSH Agent on an on-premises node:
 
 ```bash
 # 1. Download or build the binary
@@ -26,14 +26,19 @@ wget https://releases.p0.com/p0-ssh-agent/latest/p0-ssh-agent-linux-amd64
 chmod +x p0-ssh-agent-linux-amd64
 mv p0-ssh-agent-linux-amd64 p0-ssh-agent
 
-# 2. Bootstrap installation (copies binary & creates config)
-./p0-ssh-agent bootstrap
+# 2. Install system components (copies binary, creates service, generates keys)
+sudo ./p0-ssh-agent install
 
-# 3. Edit configuration with your P0 backend details
+# 3. Configure your organization settings
 sudo vi /etc/p0-ssh-agent/config.yaml
+# Update: orgId, hostId, tunnelHost
 
-# 4. Complete installation (creates service, generates keys, registers)
-sudo p0-ssh-agent install
+# 4. Register with P0 backend (generates registration code)
+sudo p0-ssh-agent register --config /etc/p0-ssh-agent/config.yaml
+
+# 5. After registration approval, start the service
+sudo systemctl enable p0-ssh-agent
+sudo systemctl start p0-ssh-agent
 ```
 
 ### Method 2: Manual Build and Setup
@@ -140,24 +145,6 @@ All commands support these global flags:
 | `-c, --config` | Path to configuration file | - |
 | `-v, --verbose` | Enable verbose logging | `false` |
 
-### `bootstrap` - Bootstrap Installation (New!)
-
-Bootstrap P0 SSH Agent installation by copying binary and creating default config.
-
-**Usage:**
-
-```bash
-./p0-ssh-agent bootstrap
-```
-
-**What it does:**
-
-- Copies the current executable to `/usr/local/bin/p0-ssh-agent`
-- Creates `/etc/p0-ssh-agent/` directory
-- Generates a default `config.yaml` file with proper permissions
-- Provides next steps for configuration
-
-**Perfect for on-premises deployments** - eliminates the need for separate bootstrap files.
 
 ### `start` - Start the SSH Agent
 
@@ -209,13 +196,18 @@ sudo p0-ssh-agent install
 
 **What it does (comprehensive setup):**
 
-- Validates configuration file
+- Copies binary to system location (`/usr/local/bin/p0-ssh-agent`)
+- Creates configuration directory and default config file
 - Creates service user (`p0-agent`)
 - Creates directories with proper permissions
 - Generates JWT keys automatically
-- Registers with P0 backend
-- Creates systemd service file
-- Enables and starts the service
+- Creates systemd service file (not started)
+- Provides instructions for configuration and registration
+
+**After installation, you must:**
+1. Edit the configuration file with your settings
+2. Run the register command to get your registration code
+3. Start the service after approval
 
 **Perfect for production on-premises deployments.**
 
@@ -266,17 +258,21 @@ Execute provisioning scripts directly for testing and validation.
 **Complete automated setup:**
 
 ```bash
-# 1. Bootstrap installation
-./p0-ssh-agent bootstrap
+# 1. Install system components (creates everything needed)
+sudo ./p0-ssh-agent install
 
 # 2. Edit configuration with your details
 sudo vi /etc/p0-ssh-agent/config.yaml
 # Update: orgId, hostId, tunnelHost
 
-# 3. Complete installation (one command does everything!)
-sudo p0-ssh-agent install
+# 3. Register with P0 backend
+sudo p0-ssh-agent register --config /etc/p0-ssh-agent/config.yaml
 
-# 4. Check status
+# 4. After approval, start the service
+sudo systemctl enable p0-ssh-agent
+sudo systemctl start p0-ssh-agent
+
+# 5. Check status
 sudo p0-ssh-agent status
 ```
 
@@ -359,17 +355,21 @@ p0-ssh-agent status --verbose
 
 ### Production On-Premises Deployment
 
-**Recommended approach (bootstrap + install):**
+**Recommended approach (install → configure → register → start):**
 
 ```bash
-# 1. Bootstrap (copies binary, creates config)
-./p0-ssh-agent bootstrap
+# 1. Install system components (copies binary, creates config template)
+sudo ./p0-ssh-agent install
 
-# 2. Edit configuration
+# 2. Edit configuration with your organization settings
 sudo vi /etc/p0-ssh-agent/config.yaml
 
-# 3. Complete installation (everything automated)
-sudo p0-ssh-agent install
+# 3. Register with P0 backend (provides registration code)
+sudo p0-ssh-agent register --config /etc/p0-ssh-agent/config.yaml
+
+# 4. After approval, start the service
+sudo systemctl enable p0-ssh-agent
+sudo systemctl start p0-ssh-agent
 ```
 
 **Manual approach:**
@@ -391,7 +391,6 @@ sudo p0-ssh-agent status
 ./dist/p0-ssh-agent --help
 
 # Show help for specific subcommands
-./dist/p0-ssh-agent bootstrap --help
 ./dist/p0-ssh-agent start --help
 ./dist/p0-ssh-agent install --help
 ./dist/p0-ssh-agent status --help
@@ -427,7 +426,6 @@ The p0-ssh-agent binary includes multiple subcommands:
 
 ### Available Commands
 
-- `bootstrap` - Bootstrap installation (copy binary, create config)
 - `start` - Start the WebSocket proxy agent
 - `keygen` - Generate JWT keypair for authentication
 - `register` - Generate machine registration request

@@ -128,7 +128,6 @@ func (c *Client) Call(method string, params interface{}) (json.RawMessage, error
 	return result, nil
 }
 
-// WaitUntilConnected waits for the connection to be established
 func (c *Client) WaitUntilConnected() error {
 	select {
 	case <-c.connected:
@@ -138,7 +137,6 @@ func (c *Client) WaitUntilConnected() error {
 	}
 }
 
-// Close closes the JSON-RPC connection
 func (c *Client) Close() error {
 	c.cancel()
 

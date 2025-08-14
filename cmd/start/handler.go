@@ -14,10 +14,8 @@ import (
 	"p0-ssh-agent/internal/logging"
 )
 
-// NewStartCommand creates the start command
 func NewStartCommand(verbose *bool, configPath *string) *cobra.Command {
 	var (
-		// Start command flags
 		orgID           string
 		hostID          string
 		tunnelHost      string
@@ -44,7 +42,6 @@ and logs incoming requests for monitoring and debugging purposes.`,
 		},
 	}
 
-	// Start command flags
 	cmd.Flags().StringVar(&orgID, "org-id", "", "Organization identifier (required)")
 	cmd.Flags().StringVar(&hostID, "host-id", "", "Host identifier (required)")
 	cmd.Flags().StringVar(&tunnelHost, "tunnel-host", "", "WebSocket URL (e.g., ws://localhost:8079 or wss://example.ngrok.app)")
@@ -64,7 +61,6 @@ func runStart(
 	keyPath, logPath string, labels []string, environment string,
 	tunnelTimeoutMs int, dryRun bool,
 ) error {
-	// Load configuration first to get log path
 	flagOverrides := map[string]interface{}{
 		"orgId":           orgID,
 		"hostId":          hostID,
@@ -79,7 +75,6 @@ func runStart(
 	
 	cfg, err := config.LoadWithOverrides(configPath, flagOverrides)
 	if err != nil {
-		// If config loading fails, use basic logging
 		logger := logrus.New()
 		if verbose {
 			logger.SetLevel(logrus.DebugLevel)
@@ -88,17 +83,13 @@ func runStart(
 		return err
 	}
 
-	// Setup logging with log file from configuration
 	logger := logging.SetupLoggerFromConfig(verbose, cfg)
 
-	// Note: tenantId and hostId validation is now handled by the config validation
 
-	// Create and start client
 	client, err := client.New(cfg, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to create P0 SSH Agent client")
 
-		// Provide helpful guidance for common errors
 		if strings.Contains(err.Error(), "failed to load JWT key") {
 			logger.Error("🔑 Keys not found or invalid! Generate them first:")
 			logger.Errorf("   1. Generate keys: p0-ssh-agent keygen --key-path %s", cfg.KeyPath)
@@ -113,7 +104,6 @@ func runStart(
 		return err
 	}
 
-	// Setup signal handling for graceful shutdown
 	var gracefulShutdown bool
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -139,9 +129,7 @@ func runStart(
 		"dryRun":          cfg.DryRun,
 	}).Info("Starting P0 SSH Agent")
 
-	// Run agent
 	if err := client.Run(); err != nil {
-		// Check if it's a graceful shutdown vs actual error
 		if gracefulShutdown {
 			logger.Info("P0 SSH Agent stopped")
 			return nil

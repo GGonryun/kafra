@@ -26,14 +26,12 @@ const (
 )
 
 var (
-	// SSH host key paths to check for fingerprinting
 	sshHostKeyPaths = []string{
 		"/etc/ssh/ssh_host_ed25519_key.pub",
 		"/etc/ssh/ssh_host_rsa_key.pub",
 		"/etc/ssh/ssh_host_ecdsa_key.pub",
 	}
 
-	// Public IP services to try
 	publicIPServices = []string{
 		"https://api.ipify.org",
 		"https://checkip.amazonaws.com",
@@ -41,7 +39,6 @@ var (
 	}
 )
 
-// GetHostname returns the system hostname
 func GetHostname(logger *logrus.Logger) string {
 	logger.Debug("Starting hostname collection...")
 
@@ -57,7 +54,6 @@ func GetHostname(logger *logrus.Logger) string {
 	return hostname
 }
 
-// GetPublicIP attempts to get the public IP address using multiple services
 func GetPublicIP(logger *logrus.Logger) string {
 	logger.Debug("Starting public IP discovery...")
 	logger.WithField("services", publicIPServices).Debug("Trying public IP services in order")
@@ -118,12 +114,10 @@ func GetPublicIP(logger *logrus.Logger) string {
 	return ""
 }
 
-// GetMachineFingerprint creates a machine fingerprint using SSH host keys
 func GetMachineFingerprint(logger *logrus.Logger) string {
 	logger.Debug("Starting machine fingerprint generation...")
 	logger.WithField("sshKeyPaths", sshHostKeyPaths).Debug("Checking SSH host key paths for fingerprinting")
 
-	// Try to get SSH host key fingerprint
 	for i, keyPath := range sshHostKeyPaths {
 		logger.WithFields(logrus.Fields{
 			"keyPath": keyPath,
@@ -141,11 +135,9 @@ func GetMachineFingerprint(logger *logrus.Logger) string {
 	}
 
 	logger.Warn("No SSH host keys found or usable, falling back to system-based fingerprint")
-	// Fallback: generate fingerprint from hostname and MAC addresses
 	return getFallbackFingerprint(logger)
 }
 
-// GetMachinePublicKey returns the SSH host public key
 func GetMachinePublicKey(logger *logrus.Logger) string {
 	logger.Debug("Starting machine public key collection...")
 	logger.WithField("sshKeyPaths", sshHostKeyPaths).Debug("Checking SSH host key paths for public key")
@@ -171,7 +163,7 @@ func GetMachinePublicKey(logger *logrus.Logger) string {
 				logger.WithFields(logrus.Fields{
 					"keyPath":   keyPath,
 					"keyLength": len(publicKey),
-					"keyType":   strings.Fields(publicKey)[0], // Usually ssh-rsa, ssh-ed25519, etc.
+					"keyType":   strings.Fields(publicKey)[0],
 				}).Info("🔐 Public key source: SSH host key file")
 				return publicKey
 			} else {
@@ -186,11 +178,9 @@ func GetMachinePublicKey(logger *logrus.Logger) string {
 	}
 
 	logger.Warn("No SSH host public keys found or readable, falling back to generated key")
-	// Fallback: generate a deterministic key based on machine info
 	return getFallbackPublicKey(logger)
 }
 
-// getSSHKeyFingerprint extracts SHA256 fingerprint from SSH host key
 func getSSHKeyFingerprint(keyPath string, logger *logrus.Logger) string {
 	if _, err := os.Stat(keyPath); err != nil {
 		logger.WithFields(logrus.Fields{
@@ -202,7 +192,6 @@ func getSSHKeyFingerprint(keyPath string, logger *logrus.Logger) string {
 
 	logger.WithField("keyPath", keyPath).Debug("SSH key file exists, extracting fingerprint with ssh-keygen")
 
-	// Use ssh-keygen to get the fingerprint
 	cmd := exec.Command("ssh-keygen", "-l", "-f", keyPath, "-E", "sha256")
 	output, err := cmd.Output()
 	if err != nil {
@@ -219,11 +208,9 @@ func getSSHKeyFingerprint(keyPath string, logger *logrus.Logger) string {
 		"sshKeygenOut": outputStr,
 	}).Debug("ssh-keygen output received")
 
-	// Parse output: "2048 SHA256:fingerprint host (RSA)"
 	parts := strings.Fields(outputStr)
 	for _, part := range parts {
 		if strings.HasPrefix(part, "SHA256:") {
-			// Keep the SHA256: prefix in the fingerprint
 			logger.WithFields(logrus.Fields{
 				"keyPath":     keyPath,
 				"fingerprint": part,
@@ -239,7 +226,6 @@ func getSSHKeyFingerprint(keyPath string, logger *logrus.Logger) string {
 	return ""
 }
 
-// getFallbackFingerprint creates a fingerprint from hostname and MAC addresses
 func getFallbackFingerprint(logger *logrus.Logger) string {
 	logger.Debug("Generating fallback fingerprint from hostname and MAC addresses...")
 
@@ -250,7 +236,6 @@ func getFallbackFingerprint(logger *logrus.Logger) string {
 	}
 	logger.WithField("hostname", hostname).Debug("Using hostname for fallback fingerprint")
 
-	// Get MAC addresses
 	interfaces, err := net.Interfaces()
 	var macAddresses []string
 	var skippedInterfaces []string
@@ -259,7 +244,6 @@ func getFallbackFingerprint(logger *logrus.Logger) string {
 		logger.Debug("Collecting MAC addresses from network interfaces...")
 		for _, iface := range interfaces {
 			if len(iface.HardwareAddr) > 0 {
-				// Skip loopback and virtual interfaces
 				if iface.Flags&net.FlagLoopback == 0 && !strings.HasPrefix(iface.Name, "docker") {
 					macAddresses = append(macAddresses, iface.HardwareAddr.String())
 					logger.WithFields(logrus.Fields{
@@ -284,7 +268,6 @@ func getFallbackFingerprint(logger *logrus.Logger) string {
 		logger.WithError(err).Warn("Failed to get network interfaces for fallback fingerprint")
 	}
 
-	// Create fingerprint from available data
 	data := hostname + strings.Join(macAddresses, "")
 	if data == "" {
 		logger.Warn("No hostname or MAC addresses available, using hardcoded fallback")
@@ -292,7 +275,7 @@ func getFallbackFingerprint(logger *logrus.Logger) string {
 	}
 
 	hash := sha256.Sum256([]byte(data))
-	hashString := fmt.Sprintf("%x", hash)[:32] // Use first 32 chars
+	hashString := fmt.Sprintf("%x", hash)[:32]
 	fingerprint := "SHA256:" + hashString
 
 	logger.WithFields(logrus.Fields{
@@ -303,7 +286,6 @@ func getFallbackFingerprint(logger *logrus.Logger) string {
 	return fingerprint
 }
 
-// getFallbackPublicKey generates a deterministic public key based on machine info
 func getFallbackPublicKey(logger *logrus.Logger) string {
 	logger.Debug("Generating fallback public key from machine information...")
 
@@ -327,40 +309,33 @@ func getFallbackPublicKey(logger *logrus.Logger) string {
 	return key
 }
 
-// isValidIP validates if a string is a valid IP address
 func isValidIP(ip string) bool {
 	return net.ParseIP(ip) != nil
 }
 
-// GenerateRegistrationCode creates a registration code combining system information
 func GenerateRegistrationCode(hostname, publicIP, fingerprint, publicKey string) string {
 	parts := []string{hostname, publicIP, fingerprint, publicKey}
 	return strings.Join(parts, ",")
 }
 
-// CreateRegistrationRequest creates a complete registration request with system information
 func CreateRegistrationRequest(configPath string, logger *logrus.Logger) (*types.RegistrationRequest, error) {
 	logger.Debug("Creating registration request...")
 
-	// Load configuration
 	cfg, err := config.LoadWithOverrides(configPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	// Collect system information using utils functions
 	hostname := GetHostname(logger)
 	publicIP := GetPublicIP(logger)
 	fingerprint := GetMachineFingerprint(logger)
 	fingerprintPublicKey := GetMachinePublicKey(logger)
 
-	// Load JWK public key
 	jwkPublicKey, err := GetJWKPublicKey(cfg.KeyPath, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load JWK public key: %w", err)
 	}
 
-	// Create registration request
 	request := &types.RegistrationRequest{
 		HostID:               cfg.HostID,
 		ClientID:             cfg.GetClientID(),
@@ -379,14 +354,12 @@ func CreateRegistrationRequest(configPath string, logger *logrus.Logger) (*types
 	return request, nil
 }
 
-// GenerateRegistrationRequestCode creates a base64-encoded registration request
 func GenerateRegistrationRequestCode(configPath string, logger *logrus.Logger) (string, error) {
 	request, err := CreateRegistrationRequest(configPath, logger)
 	if err != nil {
 		return "", err
 	}
 
-	// Convert to JSON and base64 encode
 	jsonData, err := json.Marshal(request)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal registration request: %w", err)
@@ -398,7 +371,6 @@ func GenerateRegistrationRequestCode(configPath string, logger *logrus.Logger) (
 	return encodedRequest, nil
 }
 
-// GetJWKPublicKey loads and returns the JWK public key
 func GetJWKPublicKey(keyPath string, logger *logrus.Logger) (map[string]string, error) {
 	publicKeyPath := filepath.Join(keyPath, jwt.PublicKeyFile)
 
@@ -412,7 +384,6 @@ func GetJWKPublicKey(keyPath string, logger *logrus.Logger) (map[string]string, 
 		return nil, fmt.Errorf("failed to parse JWK: %w", err)
 	}
 
-	// Convert to string map
 	result := make(map[string]string)
 	for k, v := range jwk {
 		if str, ok := v.(string); ok {

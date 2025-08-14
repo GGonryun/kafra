@@ -11,10 +11,8 @@ import (
 	"p0-ssh-agent/scripts"
 )
 
-// NewCommandCommand creates the command execution command
 func NewCommandCommand(verbose *bool, configPath *string) *cobra.Command {
 	var (
-		// Command execution flags
 		command   string
 		userName  string
 		action    string
@@ -38,7 +36,6 @@ without needing a full P0 backend connection.`,
 		},
 	}
 
-	// Command execution flags
 	cmd.Flags().StringVar(&command, "command", "", "Command to execute (provisionUser, provisionAuthorizedKeys, provisionSudo, provisionSession)")
 	cmd.Flags().StringVar(&userName, "username", "", "Username for the operation")
 	cmd.Flags().StringVar(&action, "action", "grant", "Action to perform (grant or revoke)")
@@ -47,7 +44,6 @@ without needing a full P0 backend connection.`,
 	cmd.Flags().BoolVar(&sudo, "sudo", false, "Grant sudo access")
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "Log commands but don't execute them (safe testing mode)")
 
-	// Mark required flags
 	cmd.MarkFlagRequired("command")
 	cmd.MarkFlagRequired("username")
 
@@ -58,7 +54,6 @@ func runCommand(
 	verbose bool, configPath string,
 	command, userName, action, requestID, publicKey string, sudo, dryRun bool,
 ) error {
-	// Setup logging
 	logger := logrus.New()
 	if verbose {
 		logger.SetLevel(logrus.DebugLevel)
@@ -66,7 +61,6 @@ func runCommand(
 		logger.SetLevel(logrus.InfoLevel)
 	}
 
-	// Generate request ID if not provided
 	if requestID == "" {
 		requestID = fmt.Sprintf("cmd-%d", generateRequestID(userName))
 	}
@@ -81,7 +75,6 @@ func runCommand(
 		"has_key":    publicKey != "",
 	}).Info("🧪 Executing provisioning command")
 
-	// Create provisioning request
 	req := scripts.ProvisioningRequest{
 		UserName:  userName,
 		Action:    action,
@@ -90,17 +83,14 @@ func runCommand(
 		Sudo:      sudo,
 	}
 
-	// Display request details
 	fmt.Println("📋 Provisioning Request:")
 	fmt.Println("=" + strings.Repeat("=", 30))
 	requestJSON, _ := json.MarshalIndent(req, "", "  ")
 	fmt.Println(string(requestJSON))
 	fmt.Println("=" + strings.Repeat("=", 30))
 
-	// Execute the command using the shared ExecuteScript function
 	result := scripts.ExecuteScript(command, req, dryRun, logger)
 
-	// Display results
 	fmt.Println("\n📊 Execution Result:")
 	fmt.Println("=" + strings.Repeat("=", 25))
 	resultJSON, _ := json.MarshalIndent(result, "", "  ")
@@ -120,12 +110,10 @@ func runCommand(
 	return nil
 }
 
-// generateRequestID generates a simple numeric request ID
 func generateRequestID(userName string) int64 {
 	return int64(1000000 + (hash(userName) % 8999999))
 }
 
-// Simple hash function for generating consistent IDs
 func hash(s string) int {
 	h := 0
 	for _, c := range s {

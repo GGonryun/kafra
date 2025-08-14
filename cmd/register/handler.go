@@ -10,7 +10,6 @@ import (
 	"p0-ssh-agent/utils"
 )
 
-// NewRegisterCommand creates the register command
 func NewRegisterCommand(verbose *bool, configPath *string) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "register",
@@ -28,7 +27,6 @@ hostID (unique identifier) and system hostname for P0 backend registration.`,
 }
 
 func runRegister(verbose bool, configPath string) error {
-	// Setup logging
 	logger := logrus.New()
 	if verbose {
 		logger.SetLevel(logrus.DebugLevel)
@@ -38,28 +36,24 @@ func runRegister(verbose bool, configPath string) error {
 
 	logger.Info("🔍 Collecting system information for registration...")
 
-	// Create registration request using shared utility
 	request, err := utils.CreateRegistrationRequest(configPath, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to create registration request")
 		return err
 	}
 
-	// Generate encoded request using shared utility
 	encodedRequest, err := utils.GenerateRegistrationRequestCode(configPath, logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to generate registration code")
 		return err
 	}
 
-	// Display registration information
 	displayRegistrationInfo(request, encodedRequest, configPath, logger)
 
 	return nil
 }
 
 
-// displayRegistrationInfo displays the registration information in a formatted way
 func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest string, configPath string, logger *logrus.Logger) {
 	fmt.Println("\n🎯 Machine Registration Request Generated")
 	fmt.Println("==========================================")
@@ -95,7 +89,6 @@ func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest 
 	fmt.Println("\n📦 Base64 Encoded Registration Request:")
 	fmt.Println("==========================================")
 
-	// Print in chunks for readability
 	const chunkSize = 80
 	for i := 0; i < len(encodedRequest); i += chunkSize {
 		end := i + chunkSize

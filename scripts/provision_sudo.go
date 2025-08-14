@@ -6,7 +6,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ProvisionSudo manages sudo access for users
 func ProvisionSudo(req ProvisioningRequest, logger *logrus.Logger) ProvisioningResult {
 	logger.WithFields(logrus.Fields{
 		"username":   req.UserName,
@@ -15,8 +14,6 @@ func ProvisionSudo(req ProvisioningRequest, logger *logrus.Logger) ProvisioningR
 		"sudo":       req.Sudo,
 	}).Info("⚡ Provisioning sudo access")
 
-	// Skip if sudo not requested, but only for grant operations
-	// Revoke operations should always proceed to remove existing sudo access
 	if !req.Sudo && req.Action == "grant" {
 		return ProvisioningResult{
 			Success: true,
@@ -40,7 +37,6 @@ func ProvisionSudo(req ProvisioningRequest, logger *logrus.Logger) ProvisioningR
 	}
 }
 
-// grantSudoAccess grants passwordless sudo access to a user
 func grantSudoAccess(sudoRule, requestID, sudoersFile string, logger *logrus.Logger) ProvisioningResult {
 	logger.WithFields(logrus.Fields{
 		"rule":       sudoRule,
@@ -48,13 +44,11 @@ func grantSudoAccess(sudoRule, requestID, sudoersFile string, logger *logrus.Log
 		"file":       sudoersFile,
 	}).Debug("Granting sudo access")
 
-	// Ensure the user has sudo access
 	result := ensureContentInFile(sudoRule, requestID, sudoersFile, "440", "root", logger)
 	if !result.Success {
 		return result
 	}
 
-	// Ensure the include line is in /etc/sudoers
 	includeResult := ensureLineInFile("#include sudoers-p0", "/etc/sudoers", logger)
 	if !includeResult.Success {
 		return includeResult
@@ -66,7 +60,6 @@ func grantSudoAccess(sudoRule, requestID, sudoersFile string, logger *logrus.Log
 	}
 }
 
-// revokeSudoAccess removes sudo access for a user based on RequestID
 func revokeSudoAccess(requestID, sudoersFile string, logger *logrus.Logger) ProvisioningResult {
 	logger.WithFields(logrus.Fields{
 		"request_id": requestID,

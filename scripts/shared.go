@@ -14,20 +14,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// isValidUsername validates username format against P0 requirements
 func isValidUsername(username string) bool {
 	pattern := `^[a-z][-a-z0-9_]*$`
 	matched, _ := regexp.MatchString(pattern, username)
 	return matched
 }
 
-// findNextAvailableUID finds the next available UID in the range 65536-90000
 func findNextAvailableUID() (int, error) {
 	const minUID, maxUID = 65536, 90000
 
 	for uid := minUID; uid <= maxUID; uid++ {
 		if _, err := user.LookupId(strconv.Itoa(uid)); err != nil {
-			// UID is available
 			return uid, nil
 		}
 	}
@@ -35,13 +32,11 @@ func findNextAvailableUID() (int, error) {
 	return 0, fmt.Errorf("no available UID found in range %d-%d", minUID, maxUID)
 }
 
-// commandExists checks if a command is available in the system PATH
 func commandExists(command string) bool {
 	_, err := exec.LookPath(command)
 	return err == nil
 }
 
-// ensureContentInFile adds content to a file with proper permissions and ownership
 func ensureContentInFile(content, requestID, filePath, permission, owner string, logger *logrus.Logger) ProvisioningResult {
 	comment := fmt.Sprintf("# RequestID: %s", requestID)
 
@@ -51,7 +46,6 @@ func ensureContentInFile(content, requestID, filePath, permission, owner string,
 		"owner":      owner,
 	}).Debug("Ensuring content in file")
 
-	// Create directory if it doesn't exist
 	dir := filepath.Dir(filePath)
 	if err := exec.Command("sudo", "mkdir", "-p", dir).Run(); err != nil {
 		return ProvisioningResult{
@@ -60,7 +54,6 @@ func ensureContentInFile(content, requestID, filePath, permission, owner string,
 		}
 	}
 
-	// Create file if it doesn't exist
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		if err := exec.Command("sudo", "touch", filePath).Run(); err != nil {
 			return ProvisioningResult{
@@ -76,7 +69,6 @@ func ensureContentInFile(content, requestID, filePath, permission, owner string,
 		}
 	}
 
-	// Check if content already exists
 	grepCmd := exec.Command("sudo", "grep", "-qF", comment, filePath)
 	commentExists := grepCmd.Run() == nil
 
@@ -91,7 +83,6 @@ func ensureContentInFile(content, requestID, filePath, permission, owner string,
 		}
 	}
 
-	// Add content to file
 	appendCmd := exec.Command("sudo", "tee", "-a", filePath)
 	appendCmd.Stdin = strings.NewReader(comment + "\n" + content + "\n")
 	if err := appendCmd.Run(); err != nil {
@@ -101,7 +92,6 @@ func ensureContentInFile(content, requestID, filePath, permission, owner string,
 		}
 	}
 
-	// Set ownership if specified
 	if owner != "root" && owner != "" {
 		sshDir := filepath.Dir(filePath)
 		if err := exec.Command("sudo", "chown", "-R", owner+":"+owner, sshDir).Run(); err != nil {
@@ -115,7 +105,6 @@ func ensureContentInFile(content, requestID, filePath, permission, owner string,
 	}
 }
 
-// removeContentFromFile removes content associated with a RequestID from a file
 func removeContentFromFile(requestID, filePath string, logger *logrus.Logger) ProvisioningResult {
 	comment := fmt.Sprintf("# RequestID: %s", requestID)
 
@@ -124,7 +113,6 @@ func removeContentFromFile(requestID, filePath string, logger *logrus.Logger) Pr
 		"request_id": requestID,
 	}).Debug("Removing content from file")
 
-	// Check if file exists
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return ProvisioningResult{
 			Success: true,
@@ -132,7 +120,6 @@ func removeContentFromFile(requestID, filePath string, logger *logrus.Logger) Pr
 		}
 	}
 
-	// Use sed to remove lines from comment to next empty line
 	sedPattern := fmt.Sprintf("/^%s$/,/^$/d", regexp.QuoteMeta(comment))
 	cmd := exec.Command("sudo", "sed", "-i", sedPattern, filePath)
 	if err := cmd.Run(); err != nil {
@@ -148,14 +135,12 @@ func removeContentFromFile(requestID, filePath string, logger *logrus.Logger) Pr
 	}
 }
 
-// ensureLineInFile adds a line to a file if it doesn't already exist
 func ensureLineInFile(line, filePath string, logger *logrus.Logger) ProvisioningResult {
 	logger.WithFields(logrus.Fields{
 		"file": filePath,
 		"line": line,
 	}).Debug("Ensuring line in file")
 
-	// Check if line already exists
 	grepCmd := exec.Command("sudo", "grep", "-qF", line, filePath)
 	if grepCmd.Run() == nil {
 		return ProvisioningResult{
@@ -164,7 +149,6 @@ func ensureLineInFile(line, filePath string, logger *logrus.Logger) Provisioning
 		}
 	}
 
-	// Add line to file
 	appendCmd := exec.Command("sudo", "tee", "-a", filePath)
 	appendCmd.Stdin = strings.NewReader(line + "\n")
 	if err := appendCmd.Run(); err != nil {
@@ -180,10 +164,7 @@ func ensureLineInFile(line, filePath string, logger *logrus.Logger) Provisioning
 	}
 }
 
-// ExecuteScript is the common entry point for all provisioning script execution
-// It handles dry-run logic, request validation, and script dispatch
 func ExecuteScript(command string, data interface{}, dryRun bool, logger *logrus.Logger) ProvisioningResult {
-	// Convert data to ProvisioningRequest
 	dataBytes, err := json.Marshal(data)
 	if err != nil {
 		logger.WithError(err).Error("Failed to marshal script data")
@@ -212,7 +193,6 @@ func ExecuteScript(command string, data interface{}, dryRun bool, logger *logrus
 		"dry_run":    dryRun,
 	}).Info("🚀 Executing provisioning script")
 
-	// Check dry-run mode first - skip actual execution if enabled
 	if dryRun {
 		logger.WithFields(logrus.Fields{
 			"command":  command,
@@ -226,7 +206,6 @@ func ExecuteScript(command string, data interface{}, dryRun bool, logger *logrus
 		}
 	}
 
-	// Execute the appropriate script function
 	switch Command(command) {
 	case CommandProvisionUser:
 		return ProvisionUser(req, logger)

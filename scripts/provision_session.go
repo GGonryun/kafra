@@ -9,7 +9,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// ProvisionSession manages SSH sessions for users
 func ProvisionSession(req ProvisioningRequest, logger *logrus.Logger) ProvisioningResult {
 	logger.WithFields(logrus.Fields{
 		"username":   req.UserName,
@@ -17,7 +16,6 @@ func ProvisionSession(req ProvisioningRequest, logger *logrus.Logger) Provisioni
 		"request_id": req.RequestID,
 	}).Info("🔌 Provisioning SSH session")
 
-	// Validate username format
 	if !isValidUsername(req.UserName) {
 		return ProvisioningResult{
 			Success: false,
@@ -25,7 +23,6 @@ func ProvisionSession(req ProvisioningRequest, logger *logrus.Logger) Provisioni
 		}
 	}
 
-	// Only support revoke action for session management
 	if req.Action != "revoke" {
 		return ProvisioningResult{
 			Success: false,
@@ -36,12 +33,9 @@ func ProvisionSession(req ProvisioningRequest, logger *logrus.Logger) Provisioni
 	return killUserSSHConnections(req.UserName, logger)
 }
 
-// killUserSSHConnections terminates all SSH connections for a specific user
 func killUserSSHConnections(username string, logger *logrus.Logger) ProvisioningResult {
 	logger.WithField("username", username).Info("🔍 Finding SSH connections for user")
 
-	// Find all SSH connections for the user using ps and grep
-	// Look for processes like: sshd: username@pts/0, sshd: username@notty, etc.
 	cmd := exec.Command("ps", "aux")
 	output, err := cmd.Output()
 	if err != nil {
@@ -56,11 +50,9 @@ func killUserSSHConnections(username string, logger *logrus.Logger) Provisioning
 	
 	for _, line := range lines {
 		if strings.Contains(line, "sshd:") && strings.Contains(line, username+"@") {
-			// Parse the PID from the ps output
 			fields := strings.Fields(line)
 			if len(fields) >= 2 {
 				pid := fields[1]
-				// Validate that it's a valid PID (numeric)
 				if _, err := strconv.Atoi(pid); err == nil {
 					pidsToKill = append(pidsToKill, pid)
 					logger.WithFields(logrus.Fields{
@@ -80,7 +72,6 @@ func killUserSSHConnections(username string, logger *logrus.Logger) Provisioning
 		}
 	}
 
-	// Kill all found SSH connections
 	killedCount := 0
 	var errors []string
 
@@ -90,10 +81,8 @@ func killUserSSHConnections(username string, logger *logrus.Logger) Provisioning
 			"username": username,
 		}).Info("🔪 Terminating SSH connection")
 
-		// First try SIGTERM (graceful)
 		cmd := exec.Command("kill", "-TERM", pid)
 		if err := cmd.Run(); err != nil {
-			// If SIGTERM fails, try SIGKILL (force)
 			logger.WithField("pid", pid).Warn("SIGTERM failed, trying SIGKILL")
 			cmd = exec.Command("kill", "-KILL", pid)
 			if err := cmd.Run(); err != nil {

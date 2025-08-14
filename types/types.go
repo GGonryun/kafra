@@ -1,6 +1,5 @@
 package types
 
-// ForwardedRequest represents a request to be forwarded to the target service
 type ForwardedRequest struct {
 	Headers map[string]interface{}   `json:"headers"`
 	Method  string                   `json:"method"`
@@ -10,12 +9,10 @@ type ForwardedRequest struct {
 	Options *ForwardedRequestOptions `json:"options,omitempty"`
 }
 
-// ForwardedRequestOptions contains options for forwarded requests
 type ForwardedRequestOptions struct {
 	TimeoutMillis *int `json:"timeoutMillis,omitempty"`
 }
 
-// ForwardedResponse represents a response from the target service
 type ForwardedResponse struct {
 	Headers    map[string]interface{} `json:"headers"`
 	Status     int                    `json:"status"`
@@ -23,36 +20,31 @@ type ForwardedResponse struct {
 	Data       interface{}            `json:"data"`
 }
 
-// Config holds the client configuration
 type Config struct {
 	Version         string   `json:"version" yaml:"version"`
 	OrgID           string   `json:"orgId" yaml:"orgId"`
 	HostID          string   `json:"hostId" yaml:"hostId"`
 	KeyPath         string   `json:"keyPath" yaml:"keyPath"`
 	LogPath         string   `json:"logPath" yaml:"logPath"`
-	TunnelHost      string   `json:"tunnelHost" yaml:"tunnelHost"` // WebSocket URL like ws://localhost:8079 or wss://example.ngrok.app
+	TunnelHost      string   `json:"tunnelHost" yaml:"tunnelHost"`
 	Labels          []string `json:"labels" yaml:"labels"`
 	Environment     string   `json:"environment" yaml:"environment"`
 	TunnelTimeoutMs int      `json:"tunnelTimeoutMs" yaml:"tunnelTimeoutMs"`
-	DryRun          bool     `json:"dryRun" yaml:"dryRun"` // If true, log commands but don't execute them
+	DryRun          bool     `json:"dryRun" yaml:"dryRun"`
 }
 
-// GetClientID returns the computed client ID in the format ${orgId}:${hostId}:ssh
 func (c *Config) GetClientID() string {
 	return c.OrgID + ":" + c.HostID + ":ssh"
 }
 
-// GetLogPath returns the log path from the configuration
 func (c *Config) GetLogPath() string {
 	return c.LogPath
 }
 
-// SetClientIDRequest is used for the setClientId RPC call
 type SetClientIDRequest struct {
 	ClientID string `json:"clientId"`
 }
 
-// RegistrationRequest represents the machine registration request
 type RegistrationRequest struct {
 	HostID               string            `json:"hostId"`
 	ClientID             string            `json:"clientId"`

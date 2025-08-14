@@ -14,7 +14,6 @@ import (
 )
 
 var (
-	// Global flags
 	verbose    bool
 	configPath string
 )
@@ -28,11 +27,9 @@ functionality for JWT authentication.`,
 }
 
 func init() {
-	// Global flags
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose logging")
 	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "", "Path to configuration file")
 
-	// Add subcommands
 	rootCmd.AddCommand(start.NewStartCommand(&verbose, &configPath))
 	rootCmd.AddCommand(keygen.NewKeygenCommand(&verbose, &configPath))
 	rootCmd.AddCommand(register.NewRegisterCommand(&verbose, &configPath))

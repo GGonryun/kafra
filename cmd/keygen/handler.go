@@ -13,14 +13,11 @@ import (
 	"p0-ssh-agent/internal/logging"
 )
 
-// NewKeygenCommand creates the keygen command
 func NewKeygenCommand(verbose *bool, configPath *string) *cobra.Command {
 	var (
-		// Keygen command flags
 		keyPath string
 		force   bool
 		
-		// Deprecated flags (for backward compatibility)
 		keygenPath string
 	)
 
@@ -35,7 +32,6 @@ with the P0 backend. The public key will be used for machine registration.`,
 		},
 	}
 
-	// Keygen command flags
 	cmd.Flags().StringVar(&keyPath, "key-path", "", "Directory to store JWT key files")
 	cmd.Flags().BoolVar(&force, "force", false, "Overwrite existing keys")
 	cmd.Flags().StringVar(&keygenPath, "path", "", "Directory to store JWT key files (deprecated, use --key-path)")
@@ -44,7 +40,6 @@ with the P0 backend. The public key will be used for machine registration.`,
 }
 
 func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath string) error {
-	// Load configuration first to get log path (for logging setup)
 	flagOverrides := map[string]interface{}{
 		"keyPath": keyPath,
 	}
@@ -52,39 +47,32 @@ func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath 
 	var logger *logrus.Logger
 	var finalKeyPath string
 	
-	// Try to load config for logging setup
 	cfg, err := config.LoadWithOverrides(configPath, flagOverrides)
 	if err != nil {
-		// If config loading fails, use basic logging
 		logger = logrus.New()
 		if verbose {
 			logger.SetLevel(logrus.DebugLevel)
 		}
 		logger.WithError(err).Warn("Failed to load configuration, using basic logging")
 	} else {
-		// Setup logging with log file from configuration
 		logger = logging.SetupLoggerFromConfig(verbose, cfg)
 	}
 	
-	// Determine key path - prioritize command line flags
 	finalKeyPath = keyPath
 	if finalKeyPath == "" && keygenPath != "" {
-		finalKeyPath = keygenPath // Backward compatibility
+		finalKeyPath = keygenPath
 	}
 	
-	// If no key path specified via flags, use config value
 	if finalKeyPath == "" && cfg != nil {
 		finalKeyPath = cfg.KeyPath
 	}
 	
-	// Default to current directory if still no path
 	if finalKeyPath == "" {
 		finalKeyPath = "."
 	}
 	
 	logger.WithField("path", finalKeyPath).Info("P0 SSH Agent Key Generator")
 	
-	// Check if keys already exist
 	privateKeyPath := filepath.Join(finalKeyPath, jwt.PrivateKeyFile)
 	publicKeyPath := filepath.Join(finalKeyPath, jwt.PublicKeyFile)
 	
@@ -97,16 +85,13 @@ func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath 
 		}
 	}
 	
-	// Create JWT manager
 	jwtManager := jwt.NewManager(logger)
 	
-	// Generate new keypair
 	if err := jwtManager.GenerateKeyPair(finalKeyPath); err != nil {
 		logger.WithError(err).Error("Failed to generate keypair")
 		return err
 	}
 	
-	// Display the public key for registration
 	publicKey, err := os.ReadFile(publicKeyPath)
 	if err != nil {
 		logger.WithError(err).Error("Failed to read generated public key")
