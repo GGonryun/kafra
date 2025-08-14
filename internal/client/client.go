@@ -369,7 +369,15 @@ func (c *Client) forceReconnect() {
 	if err := c.rpcClient.Close(); err != nil {
 		c.logger.WithError(err).Debug("Error closing RPC client during reconnect")
 	}
+
+	go func() {
+		c.logger.Info("🔄 Starting reconnection process")
+		if err := c.Connect(); err != nil {
+			c.logger.WithError(err).Error("❌ Reconnection failed")
+		}
+	}()
 }
+
 
 func (c *Client) GetLastHeartbeat() time.Time {
 	c.heartbeatMu.RLock()
