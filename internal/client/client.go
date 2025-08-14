@@ -78,7 +78,8 @@ func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 		if _, err := client.rpcClient.Call("setClientId", types.SetClientIDRequest{
 			ClientID: client.config.GetClientID(),
 		}); err != nil {
-			client.logger.WithError(err).Error("Failed to set client ID")
+			client.logger.WithError(err).Error("Failed to set client ID - triggering reconnection")
+			client.forceReconnect()
 			return
 		}
 		client.logger.Info("Client ID set successfully")
