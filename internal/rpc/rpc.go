@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/sourcegraph/jsonrpc2"
@@ -113,19 +115,41 @@ func (c *Client) AddMethod(method string, handler MethodHandler) {
 func (c *Client) Call(method string, params interface{}) (json.RawMessage, error) {
 	c.mu.RLock()
 	conn := c.conn
+	wsConn := c.wsConn
 	c.mu.RUnlock()
 
 	if conn == nil {
 		return nil, fmt.Errorf("not connected")
 	}
 
+	if wsConn != nil {
+		wsConn.SetReadDeadline(time.Now().Add(30 * time.Second))
+		wsConn.SetWriteDeadline(time.Now().Add(30 * time.Second))
+	}
+
 	var result json.RawMessage
 	err := conn.Call(c.ctx, method, params, &result)
 	if err != nil {
+		if isConnectionError(err) {
+			return nil, fmt.Errorf("connection lost: %w", err)
+		}
 		return nil, fmt.Errorf("RPC call failed: %w", err)
 	}
 
 	return result, nil
+}
+
+func isConnectionError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	return strings.Contains(errStr, "connection") ||
+		strings.Contains(errStr, "EOF") ||
+		strings.Contains(errStr, "broken pipe") ||
+		strings.Contains(errStr, "reset by peer") ||
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "websocket: close")
 }
 
 func (c *Client) WaitUntilConnected() error {

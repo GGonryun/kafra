@@ -20,9 +20,10 @@ import (
 )
 
 const (
-	DefaultBackoffStart = 1 * time.Second
-	DefaultBackoffMax = 30 * time.Second
+	DefaultBackoffStart   = 1 * time.Second
+	DefaultBackoffMax     = 30 * time.Second
 	DefaultRequestTimeout = 30 * time.Second
+	HeartbeatInterval     = 60 * time.Second
 )
 
 type Client struct {
@@ -32,13 +33,16 @@ type Client struct {
 	rpcClient  *rpc.Client
 	backoff    *backoff.Backoff
 
-	conn       *websocket.Conn
-	connMu     sync.RWMutex
-	ctx        context.Context
-	cancel     context.CancelFunc
-	connected  chan struct{}
-	isShutdown bool
-	shutdownMu sync.RWMutex
+	conn          *websocket.Conn
+	connMu        sync.RWMutex
+	ctx           context.Context
+	cancel        context.CancelFunc
+	connected     chan struct{}
+	isShutdown    bool
+	shutdownMu    sync.RWMutex
+	heartbeatStop chan struct{}
+	lastHeartbeat time.Time
+	heartbeatMu   sync.RWMutex
 }
 
 func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
@@ -55,13 +59,14 @@ func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	client := &Client{
-		config:     config,
-		logger:     logger,
-		jwtManager: jwtManager,
-		backoff:    backoffInstance,
-		ctx:        ctx,
-		cancel:     cancel,
-		connected:  make(chan struct{}),
+		config:        config,
+		logger:        logger,
+		jwtManager:    jwtManager,
+		backoff:       backoffInstance,
+		ctx:           ctx,
+		cancel:        cancel,
+		connected:     make(chan struct{}),
+		heartbeatStop: make(chan struct{}),
 	}
 
 	client.rpcClient = rpc.NewClient()
@@ -77,6 +82,12 @@ func New(config *types.Config, logger *logrus.Logger) (*Client, error) {
 			return
 		}
 		client.logger.Info("Client ID set successfully")
+
+		client.heartbeatMu.Lock()
+		client.lastHeartbeat = time.Now()
+		client.heartbeatMu.Unlock()
+
+		go client.startHeartbeat()
 
 		select {
 		case client.connected <- struct{}{}:
@@ -285,6 +296,7 @@ func (c *Client) Shutdown() {
 	c.isShutdown = true
 	c.shutdownMu.Unlock()
 
+	close(c.heartbeatStop)
 	c.cancel()
 
 	if err := c.rpcClient.Close(); err != nil {
@@ -292,4 +304,101 @@ func (c *Client) Shutdown() {
 	}
 
 	c.logger.Info("Client shutdown completed")
+}
+
+func (c *Client) startHeartbeat() {
+	ticker := time.NewTicker(HeartbeatInterval)
+	defer ticker.Stop()
+
+	c.logger.WithField("interval", HeartbeatInterval).Info("🫀 Starting heartbeat monitor")
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := c.sendHeartbeat(); err != nil {
+				c.logger.WithError(err).Error("💔 Heartbeat failed - connection may be lost")
+				c.forceReconnect()
+				return
+			}
+		case <-c.heartbeatStop:
+			c.logger.Info("🫀 Heartbeat monitor stopped")
+			return
+		case <-c.ctx.Done():
+			return
+		}
+	}
+}
+
+func (c *Client) sendHeartbeat() error {
+	c.logger.Debug("🫀 Sending heartbeat (setClientId)")
+
+	start := time.Now()
+	_, err := c.rpcClient.Call("setClientId", types.SetClientIDRequest{
+		ClientID: c.config.GetClientID(),
+	})
+
+	if err != nil {
+		c.logger.WithError(err).Error("🚨 Heartbeat call failed")
+		return err
+	}
+
+	c.heartbeatMu.Lock()
+	c.lastHeartbeat = time.Now()
+	c.heartbeatMu.Unlock()
+
+	duration := time.Since(start)
+	c.logger.WithFields(logrus.Fields{
+		"duration":  duration,
+		"client_id": c.config.GetClientID(),
+		"timestamp": c.lastHeartbeat.Format(time.RFC3339),
+	}).Info("💚 Heartbeat successful")
+
+	return nil
+}
+
+func (c *Client) forceReconnect() {
+	c.logger.Warn("🔄 Forcing reconnection due to heartbeat failure")
+
+	c.connMu.Lock()
+	if c.conn != nil {
+		c.conn.Close()
+		c.conn = nil
+	}
+	c.connMu.Unlock()
+
+	if err := c.rpcClient.Close(); err != nil {
+		c.logger.WithError(err).Debug("Error closing RPC client during reconnect")
+	}
+}
+
+func (c *Client) GetLastHeartbeat() time.Time {
+	c.heartbeatMu.RLock()
+	defer c.heartbeatMu.RUnlock()
+	return c.lastHeartbeat
+}
+
+func (c *Client) IsConnectionHealthy() bool {
+	c.heartbeatMu.RLock()
+	lastHeartbeat := c.lastHeartbeat
+	c.heartbeatMu.RUnlock()
+
+	if lastHeartbeat.IsZero() {
+		return false
+	}
+
+	timeSinceLastHeartbeat := time.Since(lastHeartbeat)
+	maxAllowedGap := HeartbeatInterval * 2
+
+	healthy := timeSinceLastHeartbeat < maxAllowedGap
+
+	if !healthy {
+		c.logger.WithFields(logrus.Fields{
+			"last_heartbeat":     lastHeartbeat.Format(time.RFC3339),
+			"time_since":         timeSinceLastHeartbeat,
+			"max_allowed_gap":    maxAllowedGap,
+			"connection_healthy": healthy,
+		}).Warn("⚠️ Connection health check failed")
+	}
+
+	return healthy
 }
