@@ -247,3 +247,28 @@ func (m *Manager) CreateJWT(clientID string) (string, error) {
 
 	return token, nil
 }
+
+func (m *Manager) CreateJWTWithOptions(clientID, tunnelID string, expiration time.Duration) (string, error) {
+	if m.signer == nil {
+		return "", fmt.Errorf("signer not initialized - call LoadKey or GenerateKeyPair first")
+	}
+
+	now := time.Now()
+	claims := CustomClaims{
+		TunnelID: tunnelID,
+		Claims: jwt.Claims{
+			Issuer:   "kd-client",
+			Subject:  clientID,
+			Audience: jwt.Audience{"p0.dev"},
+			IssuedAt: jwt.NewNumericDate(now),
+			Expiry:   jwt.NewNumericDate(now.Add(expiration)),
+		},
+	}
+
+	token, err := jwt.Signed(m.signer).Claims(claims).CompactSerialize()
+	if err != nil {
+		return "", fmt.Errorf("failed to create JWT: %w", err)
+	}
+
+	return token, nil
+}
