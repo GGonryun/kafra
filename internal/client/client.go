@@ -22,7 +22,6 @@ import (
 const (
 	DefaultBackoffStart   = 1 * time.Second
 	DefaultBackoffMax     = 30 * time.Second
-	DefaultRequestTimeout = 30 * time.Second
 )
 
 type Client struct {

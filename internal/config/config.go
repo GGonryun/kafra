@@ -87,7 +87,6 @@ func setDefaults(v *viper.Viper) {
 	v.SetDefault("keyPath", ".")
 	v.SetDefault("logPath", "")
 	v.SetDefault("environment", "default")
-	v.SetDefault("tunnelTimeoutSeconds", 30)
 	v.SetDefault("heartbeatIntervalSeconds", 60)
 	v.SetDefault("labels", []string{})
 }
@@ -114,9 +113,6 @@ func validateConfig(config *types.Config) error {
 		return fmt.Errorf("keyPath is required")
 	}
 	
-	if config.TunnelTimeoutSeconds < 0 {
-		return fmt.Errorf("tunnelTimeoutSeconds must be non-negative")
-	}
 	
 	if config.HeartbeatIntervalSeconds <= 0 {
 		return fmt.Errorf("heartbeatIntervalSeconds must be greater than 0")

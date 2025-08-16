@@ -33,7 +33,6 @@ type Config struct {
 	TunnelHost               string   `json:"tunnelHost" yaml:"tunnelHost"`
 	Labels                   []string `json:"labels" yaml:"labels"`
 	Environment              string   `json:"environment" yaml:"environment"`
-	TunnelTimeoutSeconds     int      `json:"tunnelTimeoutSeconds" yaml:"tunnelTimeoutSeconds"`
 	HeartbeatIntervalSeconds int      `json:"heartbeatIntervalSeconds" yaml:"heartbeatIntervalSeconds"`
 	DryRun                   bool     `json:"dryRun" yaml:"dryRun"`
 }
@@ -50,9 +49,6 @@ func (c *Config) GetHeartbeatInterval() time.Duration {
 	return time.Duration(c.HeartbeatIntervalSeconds) * time.Second
 }
 
-func (c *Config) GetTunnelTimeout() time.Duration {
-	return time.Duration(c.TunnelTimeoutSeconds) * time.Second
-}
 
 type SetClientIDRequest struct {
 	ClientID string `json:"clientId"`

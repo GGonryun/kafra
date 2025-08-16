@@ -89,7 +89,6 @@ labels:
   - "team=infrastructure"
   - "region=us-west-2"
 environment: "production" # Environment identifier
-tunnelTimeoutSeconds: 30 # Connection timeout in seconds
 ```
 
 #### 3. Register with Backend
@@ -590,7 +589,6 @@ tunnelHost: "wss://p0.example.com" # WebSocket URL (ws:// or wss://)
 keyPath: "/path/to/keys" # JWT key storage directory
 logPath: "/path/to/logs" # Log file directory (empty = stdout)
 environment: "production" # Environment identifier
-tunnelTimeoutSeconds: 30 # Connection timeout in seconds
 heartbeatIntervalSeconds: 60 # Heartbeat interval in seconds (default: 60)
 dryRun: false # Enable dry-run mode globally
 
