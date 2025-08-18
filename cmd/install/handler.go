@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"p0-ssh-agent/internal/config"
+	"p0-ssh-agent/internal/osplugins"
 )
 
 func NewInstallCommand(verbose *bool, configPath *string) *cobra.Command {
@@ -58,18 +59,27 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 		logger.SetLevel(logrus.InfoLevel)
 	}
 
+	// Load and select appropriate OS plugin
+	osplugins.LoadAllPlugins()
+	osPlugin, err := osplugins.GetPlugin(logger)
+	if err != nil {
+		logger.WithError(err).Error("Failed to select OS plugin")
+		return fmt.Errorf("failed to select OS plugin: %w", err)
+	}
+
 	if configPath == "" {
-		configPath = "/etc/p0-ssh-agent/config.yaml"
+		configPath = filepath.Join(osPlugin.GetConfigDirectory(), "config.yaml")
 	}
 
 	logger.WithFields(logrus.Fields{
 		"service_name": serviceName,
 		"service_user": serviceUser,
 		"config_path":  configPath,
+		"os_plugin":    osPlugin.GetName(),
 	}).Info("🚀 Starting complete P0 SSH Agent installation")
 
 	logger.Info("📦 Step 0: Bootstrap installation")
-	if err := runBootstrapSteps(logger, allowRoot); err != nil {
+	if err := runBootstrapSteps(logger, allowRoot, osPlugin); err != nil {
 		logger.WithError(err).Error("Failed to bootstrap")
 		return fmt.Errorf("failed to bootstrap: %w", err)
 	}
@@ -117,7 +127,7 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 	}
 
 	logger.Info("⚙️  Step 7: Creating systemd service")
-	if err := createSystemdService(serviceName, serviceUser, executablePath, configPath, logger); err != nil {
+	if err := osPlugin.CreateSystemdService(serviceName, serviceUser, executablePath, configPath, logger); err != nil {
 		logger.WithError(err).Error("Failed to create systemd service")
 		return fmt.Errorf("failed to create systemd service: %w", err)
 	}
@@ -153,12 +163,13 @@ func detectExecutablePath() (string, error) {
 	return "", fmt.Errorf("p0-ssh-agent executable not found in common locations")
 }
 
-func runBootstrapSteps(logger *logrus.Logger, allowRoot bool) error {
+func runBootstrapSteps(logger *logrus.Logger, allowRoot bool, osPlugin osplugins.OSPlugin) error {
 	const (
 		defaultBinaryName = "p0-ssh-agent"
-		defaultConfigDir  = "/etc/p0-ssh-agent"
-		defaultConfigFile = "/etc/p0-ssh-agent/config.yaml"
 	)
+	
+	defaultConfigDir := osPlugin.GetConfigDirectory()
+	defaultConfigFile := filepath.Join(defaultConfigDir, "config.yaml")
 
 	if os.Geteuid() == 0 && !allowRoot {
 		return fmt.Errorf("install command should not be run as root, please run as regular user with sudo privileges (or use --allow-root flag to bypass this check)")
@@ -173,8 +184,8 @@ func runBootstrapSteps(logger *logrus.Logger, allowRoot bool) error {
 		return fmt.Errorf("failed to get current executable path: %w", err)
 	}
 
-	// Determine the best installation directory
-	installDir, err := determineInstallDir(logger)
+	// Determine the best installation directory using the plugin
+	installDir, err := determineInstallDirFromPlugin(osPlugin, logger)
 	if err != nil {
 		return fmt.Errorf("failed to determine installation directory: %w", err)
 	}
@@ -213,13 +224,8 @@ func runBootstrapSteps(logger *logrus.Logger, allowRoot bool) error {
 	return nil
 }
 
-func determineInstallDir(logger *logrus.Logger) (string, error) {
-	// Prioritized list of installation directories
-	candidateDirs := []string{
-		"/usr/local/bin",  // Standard on most distributions
-		"/usr/bin",        // Fallback for NixOS and minimal systems
-		"/opt/p0/bin",     // Custom location fallback
-	}
+func determineInstallDirFromPlugin(osPlugin osplugins.OSPlugin, logger *logrus.Logger) (string, error) {
+	candidateDirs := osPlugin.GetInstallDirectories()
 
 	for _, dir := range candidateDirs {
 		// Check if parent directory exists
