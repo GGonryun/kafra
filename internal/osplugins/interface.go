@@ -32,6 +32,12 @@ type OSPlugin interface {
 	
 	// RemoveJITUser removes a dynamically created user (cleanup)
 	RemoveJITUser(username string, logger *logrus.Logger) error
+	
+	// UninstallService handles OS-specific service uninstallation
+	UninstallService(serviceName string, logger *logrus.Logger) error
+	
+	// CleanupInstallation performs OS-specific cleanup during uninstall
+	CleanupInstallation(serviceName string, logger *logrus.Logger) error
 }
 
 // InstallConfig contains parameters needed for installation

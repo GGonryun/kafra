@@ -9,65 +9,25 @@ import (
 
 	"github.com/sirupsen/logrus"
 
+	"p0-ssh-agent/internal/osplugins"
 	"p0-ssh-agent/types"
 )
 
-func createServiceUser(serviceUser, keyPath string, logger *logrus.Logger) error {
+func createServiceUser(serviceUser, keyPath string, osPlugin osplugins.OSPlugin, logger *logrus.Logger) error {
 	logger.WithField("user", serviceUser).Info("Creating service user")
 
-	cmd := exec.Command("id", serviceUser)
-	if cmd.Run() == nil {
-		logger.WithField("user", serviceUser).Info("✅ Service user already exists")
-		return nil
-	}
-
-	cmd = exec.Command("sudo", "useradd",
-		"--system",
-		"--shell", "/bin/false",
-		"--home", keyPath,
-		"--create-home",
-		serviceUser)
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create user %s: %w", serviceUser, err)
-	}
-
-	logger.WithField("user", serviceUser).Info("✅ Service user created successfully")
-	return nil
+	// Use the OS plugin to create the user
+	return osPlugin.CreateUser(serviceUser, keyPath, logger)
 }
 
-func createDirectories(cfg *types.Config, serviceUser string, logger *logrus.Logger) error {
+func createDirectories(cfg *types.Config, serviceUser string, osPlugin osplugins.OSPlugin, logger *logrus.Logger) error {
 	directories := []string{
 		cfg.KeyPath,
 		filepath.Dir(cfg.LogPath),
 	}
 
-	for _, dir := range directories {
-		if dir == "" {
-			continue
-		}
-
-		logger.WithField("dir", dir).Info("Creating directory")
-
-		cmd := exec.Command("sudo", "mkdir", "-p", dir)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
-		}
-
-		cmd = exec.Command("sudo", "chown", "-R", "root:root", dir)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to set ownership for %s: %w", dir, err)
-		}
-
-		cmd = exec.Command("sudo", "chmod", "755", dir)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to set permissions for %s: %w", dir, err)
-		}
-
-		logger.WithField("dir", dir).Info("✅ Directory created successfully")
-	}
-
-	return nil
+	// Use the OS plugin to setup directories
+	return osPlugin.SetupDirectories(directories, serviceUser, logger)
 }
 
 func generateJWTKeys(keyPath, serviceUser, executablePath string, logger *logrus.Logger) error {

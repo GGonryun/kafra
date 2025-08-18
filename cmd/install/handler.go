@@ -102,13 +102,13 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 	logger.WithField("path", executablePath).Info("✅ Executable path detected")
 
 	logger.Info("👤 Step 3: Creating service user")
-	if err := createServiceUser(serviceUser, cfg.KeyPath, logger); err != nil {
+	if err := createServiceUser(serviceUser, cfg.KeyPath, osPlugin, logger); err != nil {
 		logger.WithError(err).Error("Failed to create service user")
 		return fmt.Errorf("failed to create service user: %w", err)
 	}
 
 	logger.Info("📁 Step 4: Creating directories")
-	if err := createDirectories(cfg, serviceUser, logger); err != nil {
+	if err := createDirectories(cfg, serviceUser, osPlugin, logger); err != nil {
 		logger.WithError(err).Error("Failed to create directories")
 		return fmt.Errorf("failed to create directories: %w", err)
 	}

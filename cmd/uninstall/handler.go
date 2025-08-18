@@ -2,12 +2,12 @@ package uninstall
 
 import (
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
+	"p0-ssh-agent/internal/osplugins"
 )
 
 func NewUninstallCommand(verbose *bool, configPath *string) *cobra.Command {
@@ -54,11 +54,18 @@ func runUninstall(verbose bool, configPath string, serviceName, serviceUser stri
 		configPath = "/etc/p0-ssh-agent/config.yaml"
 	}
 
+	// Get the appropriate OS plugin
+	osPlugin, err := osplugins.GetPlugin(logger)
+	if err != nil {
+		return fmt.Errorf("failed to get OS plugin: %w", err)
+	}
+
 	logger.WithFields(logrus.Fields{
 		"service_name": serviceName,
 		"service_user": serviceUser,
 		"config_path":  configPath,
 		"force":        force,
+		"os_plugin":    osPlugin.GetName(),
 	}).Info("🗑️ Starting P0 SSH Agent uninstallation")
 
 	if !force {
@@ -66,7 +73,14 @@ func runUninstall(verbose bool, configPath string, serviceName, serviceUser stri
 		fmt.Printf("- Systemd service (%s)\n", serviceName)
 		fmt.Printf("- Configuration directory (/etc/p0-ssh-agent/)\n")
 		fmt.Printf("- Log files and keys\n")
-		fmt.Printf("- System binary (/usr/local/bin/p0-ssh-agent)\n\n")
+		
+		// Show OS-specific binary paths
+		installDirs := osPlugin.GetInstallDirectories()
+		for _, dir := range installDirs {
+			fmt.Printf("- System binary (%s/p0-ssh-agent)\n", dir)
+		}
+		fmt.Printf("\n")
+		
 		fmt.Printf("Are you sure you want to continue? (y/N): ")
 
 		var response string
@@ -81,12 +95,8 @@ func runUninstall(verbose bool, configPath string, serviceName, serviceUser stri
 		name string
 		fn   func() error
 	}{
-		{"Stop and disable systemd service", func() error { return stopAndDisableService(serviceName, logger) }},
-		{"Remove systemd service file", func() error { return removeServiceFile(serviceName, logger) }},
-		{"Remove configuration directory", func() error { return removeDirectory("/etc/p0-ssh-agent", logger) }},
-		{"Remove log directory", func() error { return removeDirectory("/var/log/p0-ssh-agent", logger) }},
-		{"Remove system binary", func() error { return removeBinary("/usr/local/bin/p0-ssh-agent", logger) }},
-		{"Reload systemd daemon", func() error { return reloadSystemd(logger) }},
+		{"Uninstall service", func() error { return osPlugin.UninstallService(serviceName, logger) }},
+		{"Clean up installation", func() error { return osPlugin.CleanupInstallation(serviceName, logger) }},
 	}
 
 	var errors []error
@@ -113,136 +123,6 @@ func runUninstall(verbose bool, configPath string, serviceName, serviceUser stri
 	return nil
 }
 
-func stopAndDisableService(serviceName string, logger *logrus.Logger) error {
-	logger.WithField("service", serviceName).Debug("Checking service status")
-
-	cmd := exec.Command("systemctl", "is-active", serviceName)
-	if err := cmd.Run(); err == nil {
-		logger.Info("Service is running, stopping...")
-		cmd = exec.Command("sudo", "systemctl", "stop", serviceName)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to stop service: %w", err)
-		}
-		logger.Info("Service stopped")
-	} else {
-		logger.Debug("Service not running")
-	}
-
-	cmd = exec.Command("systemctl", "is-enabled", serviceName)
-	if err := cmd.Run(); err == nil {
-		logger.Info("Service is enabled, disabling...")
-		cmd = exec.Command("sudo", "systemctl", "disable", serviceName)
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to disable service: %w", err)
-		}
-		logger.Info("Service disabled")
-	} else {
-		logger.Debug("Service not enabled")
-	}
-
-	return nil
-}
-
-func removeServiceFile(serviceName string, logger *logrus.Logger) error {
-	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
-	
-	logger.WithField("path", serviceFilePath).Debug("Checking service file")
-	
-	if _, err := os.Stat(serviceFilePath); os.IsNotExist(err) {
-		logger.Debug("Service file does not exist")
-		return nil
-	}
-
-	cmd := exec.Command("sudo", "rm", "-f", serviceFilePath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove service file: %w", err)
-	}
-
-	logger.WithField("path", serviceFilePath).Info("Service file removed")
-	return nil
-}
-
-func removeServiceUser(serviceUser string, logger *logrus.Logger) error {
-	logger.WithField("user", serviceUser).Debug("Checking if user exists")
-
-	if serviceUser == "root" {
-		logger.Info("Skipping removal of root user")
-		return nil
-	}
-
-	cmd := exec.Command("id", serviceUser)
-	if err := cmd.Run(); err != nil {
-		logger.Debug("User does not exist")
-		return nil
-	}
-
-	logger.Info("Removing service user and home directory")
-	cmd = exec.Command("sudo", "userdel", "-r", serviceUser)
-	if err := cmd.Run(); err != nil {
-		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 6 {
-			logger.WithField("user", serviceUser).Info("User does not exist or already removed")
-			return nil
-		}
-		logger.WithError(err).Warn("Failed to remove user with home directory, trying without -r flag")
-		cmd = exec.Command("sudo", "userdel", serviceUser)
-		if err := cmd.Run(); err != nil {
-			if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 6 {
-				logger.WithField("user", serviceUser).Info("User does not exist or already removed")
-				return nil
-			}
-			return fmt.Errorf("failed to remove user: %w", err)
-		}
-	}
-
-	logger.WithField("user", serviceUser).Info("Service user removed")
-	return nil
-}
-
-func removeDirectory(dirPath string, logger *logrus.Logger) error {
-	logger.WithField("path", dirPath).Debug("Checking directory")
-
-	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
-		logger.Debug("Directory does not exist")
-		return nil
-	}
-
-	cmd := exec.Command("sudo", "rm", "-rf", dirPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove directory %s: %w", dirPath, err)
-	}
-
-	logger.WithField("path", dirPath).Info("Directory removed")
-	return nil
-}
-
-func removeBinary(binaryPath string, logger *logrus.Logger) error {
-	logger.WithField("path", binaryPath).Debug("Checking binary")
-
-	if _, err := os.Stat(binaryPath); os.IsNotExist(err) {
-		logger.Debug("Binary does not exist")
-		return nil
-	}
-
-	cmd := exec.Command("sudo", "rm", "-f", binaryPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove binary: %w", err)
-	}
-
-	logger.WithField("path", binaryPath).Info("Binary removed")
-	return nil
-}
-
-func reloadSystemd(logger *logrus.Logger) error {
-	logger.Debug("Reloading systemd daemon")
-	
-	cmd := exec.Command("sudo", "systemctl", "daemon-reload")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to reload systemd daemon: %w", err)
-	}
-
-	logger.Info("Systemd daemon reloaded")
-	return nil
-}
 
 func displayUninstallSummary(hasErrors bool, errors []error) {
 	fmt.Println("\n" + strings.Repeat("=", 60))

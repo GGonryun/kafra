@@ -292,3 +292,90 @@ func (p *LinuxPlugin) addSSHKeyToUser(username, sshKey string, logger *logrus.Lo
 	logger.WithField("user", username).Info("✅ SSH key added successfully")
 	return nil
 }
+
+func (p *LinuxPlugin) UninstallService(serviceName string, logger *logrus.Logger) error {
+	logger.WithField("service", serviceName).Info("Uninstalling systemd service")
+
+	// Stop service if running
+	cmd := exec.Command("systemctl", "is-active", serviceName)
+	if err := cmd.Run(); err == nil {
+		logger.Info("Service is running, stopping...")
+		cmd = exec.Command("sudo", "systemctl", "stop", serviceName)
+		if err := cmd.Run(); err != nil {
+			logger.WithError(err).Warn("Failed to stop service")
+		} else {
+			logger.Info("Service stopped")
+		}
+	}
+
+	// Disable service if enabled
+	cmd = exec.Command("systemctl", "is-enabled", serviceName)
+	if err := cmd.Run(); err == nil {
+		logger.Info("Service is enabled, disabling...")
+		cmd = exec.Command("sudo", "systemctl", "disable", serviceName)
+		if err := cmd.Run(); err != nil {
+			logger.WithError(err).Warn("Failed to disable service")
+		} else {
+			logger.Info("Service disabled")
+		}
+	}
+
+	// Remove service file
+	serviceFilePath := fmt.Sprintf("/etc/systemd/system/%s.service", serviceName)
+	if _, err := os.Stat(serviceFilePath); err == nil {
+		cmd = exec.Command("sudo", "rm", "-f", serviceFilePath)
+		if err := cmd.Run(); err != nil {
+			logger.WithError(err).Warn("Failed to remove service file")
+		} else {
+			logger.WithField("path", serviceFilePath).Info("Service file removed")
+		}
+	}
+
+	// Reload systemd daemon
+	cmd = exec.Command("sudo", "systemctl", "daemon-reload")
+	if err := cmd.Run(); err != nil {
+		logger.WithError(err).Warn("Failed to reload systemd daemon")
+	} else {
+		logger.Info("Systemd daemon reloaded")
+	}
+
+	return nil
+}
+
+func (p *LinuxPlugin) CleanupInstallation(serviceName string, logger *logrus.Logger) error {
+	logger.Info("Performing Linux-specific cleanup")
+	
+	// Remove standard directories
+	dirs := []string{
+		"/etc/p0-ssh-agent",
+		"/var/log/p0-ssh-agent",
+	}
+	
+	for _, dir := range dirs {
+		if _, err := os.Stat(dir); err == nil {
+			cmd := exec.Command("sudo", "rm", "-rf", dir)
+			if err := cmd.Run(); err != nil {
+				logger.WithError(err).WithField("dir", dir).Warn("Failed to remove directory")
+			} else {
+				logger.WithField("dir", dir).Info("Directory removed")
+			}
+		}
+	}
+	
+	// Remove binary from install directories
+	installDirs := p.GetInstallDirectories()
+	for _, dir := range installDirs {
+		binaryPath := fmt.Sprintf("%s/p0-ssh-agent", dir)
+		if _, err := os.Stat(binaryPath); err == nil {
+			cmd := exec.Command("sudo", "rm", "-f", binaryPath)
+			if err := cmd.Run(); err != nil {
+				logger.WithError(err).WithField("path", binaryPath).Warn("Failed to remove binary")
+			} else {
+				logger.WithField("path", binaryPath).Info("Binary removed")
+			}
+			break // Only remove from the first directory where it's found
+		}
+	}
+	
+	return nil
+}

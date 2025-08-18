@@ -50,20 +50,14 @@ func (p *NixOSPlugin) CreateUser(username, homeDir string, logger *logrus.Logger
 		return nil
 	}
 
-	// Try systemd-homed first for dynamic user creation
-	logger.WithField("user", username).Info("Attempting to create user with systemd-homed")
-	
-	// Check if systemd-homed is available
-	if p.isSystemdHomedAvailable() {
-		err := p.createUserWithHomed(username, homeDir, logger)
-		if err == nil {
-			return nil
-		}
-		logger.WithError(err).Warn("systemd-homed user creation failed, falling back to configuration instructions")
+	// Check if systemd-homed is available - this is required for NixOS
+	if !p.isSystemdHomedAvailable() {
+		return p.provideSystemdHomedSetupInstructions(username, homeDir, logger)
 	}
 
-	// Fall back to configuration instructions
-	return p.provideUserConfigInstructions(username, homeDir, logger)
+	// Create user with systemd-homed
+	logger.WithField("user", username).Info("Creating user with systemd-homed")
+	return p.createUserWithHomed(username, homeDir, logger)
 }
 
 func (p *NixOSPlugin) isSystemdHomedAvailable() bool {
@@ -93,42 +87,39 @@ func (p *NixOSPlugin) createUserWithHomed(username, homeDir string, logger *logr
 	return nil
 }
 
-func (p *NixOSPlugin) provideUserConfigInstructions(username, homeDir string, logger *logrus.Logger) error {
-	logger.WithField("user", username).Warn("⚠️  User creation requires configuration")
+func (p *NixOSPlugin) provideSystemdHomedSetupInstructions(username, homeDir string, logger *logrus.Logger) error {
+	logger.WithField("user", username).Error("⚠️  systemd-homed is required but not enabled")
 	
-	userConfig := fmt.Sprintf(`
-# OPTION 1: Enable systemd-homed for dynamic user management
+	setupInstructions := fmt.Sprintf(`
+# REQUIRED: Enable systemd-homed for P0 SSH Agent on NixOS
 # Add this to your /etc/nixos/configuration.nix:
 
 services.homed.enable = true;
 
-# Then rebuild: sudo nixos-rebuild switch
-# After that, create users dynamically with:
-# sudo homectl create %s --real-name "P0 Service User" --shell /bin/false
+# Then rebuild your system:
+# sudo nixos-rebuild switch
 
-# OPTION 2: Declare user statically in configuration.nix
-# Add this to your /etc/nixos/configuration.nix:
+# After systemd-homed is enabled, P0 SSH Agent will automatically:
+# - Create JIT users dynamically with: homectl create <username>
+# - Manage SSH keys for temporary access
+# - Clean up users when sessions expire
 
-users.users.%s = {
-  isSystemUser = true;
-  shell = "/bin/false";
-  home = "%s";
-  createHome = true;
-  group = "%s";
-};
+# The P0 SSH Agent requires systemd-homed for:
+# ✅ Just-In-Time user provisioning
+# ✅ Dynamic SSH key management  
+# ✅ Secure session cleanup
+# ✅ NixOS-compatible user management`)
 
-users.groups.%s = {};`, username, username, homeDir, username, username)
+	fmt.Println("\n" + strings.Repeat("=", 80))
+	fmt.Println("🐧 NixOS SETUP REQUIRED - systemd-homed Missing")
+	fmt.Println(strings.Repeat("=", 80))
+	fmt.Println("P0 SSH Agent requires systemd-homed for dynamic user management.")
+	fmt.Println(setupInstructions)
+	fmt.Println("\n" + strings.Repeat("=", 80))
+	fmt.Println("After enabling systemd-homed, run the P0 install command again.")
+	fmt.Println(strings.Repeat("=", 80))
 
-	fmt.Println("\n" + strings.Repeat("=", 70))
-	fmt.Println("🐧 NixOS USER CREATION OPTIONS")
-	fmt.Println(strings.Repeat("=", 70))
-	fmt.Println("Choose one of the following approaches:")
-	fmt.Println(userConfig)
-	fmt.Println("\nRecommended: Use systemd-homed for JIT user provisioning")
-	fmt.Println("Then run: sudo nixos-rebuild switch")
-	fmt.Println(strings.Repeat("=", 70))
-
-	return fmt.Errorf("user %s requires configuration - see options above", username)
+	return fmt.Errorf("systemd-homed is not enabled - add 'services.homed.enable = true;' to /etc/nixos/configuration.nix and run 'sudo nixos-rebuild switch'")
 }
 
 func (p *NixOSPlugin) SetupDirectories(dirs []string, owner string, logger *logrus.Logger) error {
@@ -179,11 +170,15 @@ func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, _ /* serviceUser *
 
 	nixConfig := fmt.Sprintf(`# Add this to your /etc/nixos/configuration.nix file:
 
+# REQUIRED: Enable systemd-homed for JIT user management
+services.homed.enable = true;
+
+# P0 SSH Agent systemd service
 systemd.services.%s = {
   enable = true;
   description = "P0 SSH Agent - Secure SSH access management";
   documentation = [ "https://docs.p0.com/" ];
-  after = [ "network-online.target" ];
+  after = [ "network-online.target" "systemd-homed.service" ];
   wants = [ "network-online.target" ];
   wantedBy = [ "multi-user.target" ];
   
@@ -348,5 +343,87 @@ func (p *NixOSPlugin) addSSHKeyToUser(username, sshKey string, logger *logrus.Lo
 	}
 
 	logger.WithField("user", username).Info("✅ SSH key added successfully")
+	return nil
+}
+
+func (p *NixOSPlugin) UninstallService(serviceName string, logger *logrus.Logger) error {
+	logger.WithField("service", serviceName).Info("Handling NixOS service uninstallation")
+
+	// Stop service if running (NixOS still uses systemctl for runtime management)
+	cmd := exec.Command("systemctl", "is-active", serviceName)
+	if err := cmd.Run(); err == nil {
+		logger.Info("Service is running, stopping...")
+		cmd = exec.Command("sudo", "systemctl", "stop", serviceName)
+		if err := cmd.Run(); err != nil {
+			logger.WithError(err).Warn("Failed to stop service")
+		} else {
+			logger.Info("Service stopped")
+		}
+	}
+
+	// Note: No service file removal needed on NixOS - services are managed declaratively
+	logger.Info("ℹ️  NixOS services are managed declaratively - no service files to remove")
+	
+	return nil
+}
+
+func (p *NixOSPlugin) CleanupInstallation(serviceName string, logger *logrus.Logger) error {
+	logger.Info("Performing NixOS-specific cleanup")
+	
+	// Remove runtime directories that may have been created
+	dirs := []string{
+		"/etc/p0-ssh-agent", // Config directory
+		"/var/log/p0-ssh-agent", // Log directory  
+	}
+	
+	for _, dir := range dirs {
+		if _, err := os.Stat(dir); err == nil {
+			cmd := exec.Command("sudo", "rm", "-rf", dir)
+			if err := cmd.Run(); err != nil {
+				logger.WithError(err).WithField("dir", dir).Warn("Failed to remove directory")
+			} else {
+				logger.WithField("dir", dir).Info("Directory removed")
+			}
+		}
+	}
+	
+	// Remove binary from install directories
+	installDirs := p.GetInstallDirectories()
+	for _, dir := range installDirs {
+		binaryPath := fmt.Sprintf("%s/p0-ssh-agent", dir)
+		if _, err := os.Stat(binaryPath); err == nil {
+			cmd := exec.Command("sudo", "rm", "-f", binaryPath)
+			if err := cmd.Run(); err != nil {
+				logger.WithError(err).WithField("path", binaryPath).Warn("Failed to remove binary")
+			} else {
+				logger.WithField("path", binaryPath).Info("Binary removed")
+			}
+			break // Only remove from the first directory where it's found
+		}
+	}
+	
+	// Provide NixOS-specific cleanup instructions
+	nixosInstructions := fmt.Sprintf(`
+# NixOS UNINSTALL INSTRUCTIONS
+
+To completely remove P0 SSH Agent from your NixOS system:
+
+1. Remove the service configuration from /etc/nixos/configuration.nix:
+   - Delete the 'systemd.services.%s' block
+   - Remove 'services.homed.enable = true;' if no longer needed
+
+2. Rebuild your system:
+   sudo nixos-rebuild switch
+
+3. The service will be automatically removed from your system.
+
+Note: Runtime files and binaries have been cleaned up automatically.`, serviceName)
+	
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	fmt.Println("🐧 NixOS UNINSTALL COMPLETE")
+	fmt.Println(strings.Repeat("=", 70))
+	fmt.Println(nixosInstructions)
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	
 	return nil
 }
