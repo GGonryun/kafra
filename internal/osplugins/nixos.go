@@ -89,13 +89,9 @@ func (p *NixOSPlugin) createUserWithHomed(username, homeDir string, logger *logr
 	}
 
 	// Create user with homectl using NEWPASSWORD environment variable
-	cmd := exec.Command("sudo", "homectl", "create", username,
-		"--real-name", fmt.Sprintf("P0 Service User %s", username),
-		"--shell", "/bin/false",
-		"--home-dir", homeDir,
-		"--storage=directory",
-	)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("NEWPASSWORD=%s", password))
+	cmdStr := fmt.Sprintf("sudo NEWPASSWORD=%s homectl create %s --real-name '%s' --shell '/bin/false' --home-dir '%s' --storage=directory",
+		password, username, fmt.Sprintf("P0 Service User %s", username), homeDir)
+	cmd := exec.Command("bash", "-c", cmdStr)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -105,7 +101,8 @@ func (p *NixOSPlugin) createUserWithHomed(username, homeDir string, logger *logr
 
 	// Activate the user to mount/prepare the home directory
 	logger.WithField("user", username).Info("Activating user home directory")
-	cmd = exec.Command("sudo", "homectl", "activate", username)
+	cmdStr = fmt.Sprintf("expect -c \"spawn sudo homectl activate %s; expect \\\"Password:\\\"; send \\\"%s\\r\\\"; interact\"", username, password)
+	cmd = exec.Command("bash", "-c", cmdStr)
 	output, err = cmd.CombinedOutput()
 	if err != nil {
 		logger.WithError(err).WithField("output", string(output)).Error("Failed to activate user home directory")
@@ -268,26 +265,14 @@ func (p *NixOSPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logg
 	}
 
 	// Create user with homectl using NEWPASSWORD environment variable
-	cmd = exec.Command("sudo", "homectl", "create", username,
-		"--real-name", fmt.Sprintf("P0 JIT User %s", username),
-		"--shell", "/run/current-system/sw/bin/bash",
-		"--home-dir", fmt.Sprintf("/home/%s", username),
-	)
-	cmd.Env = append(os.Environ(), fmt.Sprintf("NEWPASSWORD=%s", password))
+	cmdStr := fmt.Sprintf("sudo NEWPASSWORD=%s homectl create %s --real-name '%s' --shell '/run/current-system/sw/bin/bash' --home-dir '/home/%s'",
+		password, username, fmt.Sprintf("P0 JIT User %s", username), username)
+	cmd = exec.Command("bash", "-c", cmdStr)
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		logger.WithError(err).WithField("output", string(output)).Error("Failed to create JIT user")
 		return fmt.Errorf("failed to create JIT user: %w", err)
-	}
-
-	// Activate the user to mount/prepare the home directory
-	logger.WithField("user", username).Info("Activating JIT user home directory")
-	cmd = exec.Command("sudo", "homectl", "activate", username)
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		logger.WithError(err).WithField("output", string(output)).Error("Failed to activate JIT user home directory")
-		return fmt.Errorf("homectl activate failed: %w", err)
 	}
 
 	// Add SSH key if provided
