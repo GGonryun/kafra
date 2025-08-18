@@ -19,12 +19,7 @@ func NewNixOSPlugin() *NixOSPlugin {
 
 // getNixOSShellPath detects and returns the appropriate shell path for NixOS
 func (p *NixOSPlugin) getNixOSShellPath() string {
-	nixosShellPath := "/run/current-system/sw/bin/bash"
-	if _, err := os.Stat(nixosShellPath); err != nil {
-		// Fallback to standard shell if NixOS path doesn't exist
-		return "/bin/bash"
-	}
-	return nixosShellPath
+	return "/run/current-system/sw/bin/bash"
 }
 
 func init() {
@@ -68,8 +63,6 @@ func (p *NixOSPlugin) CreateSystemdService(serviceName, executablePath, configPa
 func (p *NixOSPlugin) GetConfigDirectory() string {
 	return "/etc/p0-ssh-agent"
 }
-
-
 
 func (p *NixOSPlugin) SetupDirectories(dirs []string, owner string, logger *logrus.Logger) error {
 	for _, dir := range dirs {
@@ -160,7 +153,7 @@ systemd.services.%s = {
   
   # Environment variables - extend PATH to include system binaries needed for user management
   environment = {
-    PATH = lib.mkForce "/run/current-system/sw/bin:/run/current-system/sw/sbin:/usr/bin:/bin";
+    PATH = lib.mkForce "/run/current-system/sw/bin:/run/current-system/sw/sbin:/run/wrappers/bin:/usr/bin:/bin";
     HOME = "/root";
   };
 };`, serviceName, workingDir, executablePath, configPath, serviceName)
@@ -195,18 +188,18 @@ systemd.services.%s = {
 	return nil
 }
 
-func (p *NixOSPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logger) error {
+func (p *NixOSPlugin) CreateUser(username string, logger *logrus.Logger) error {
 	logger.WithField("user", username).Info("Creating JIT user with NixOS shell path")
 
 	// Use utility function with NixOS-specific shell path
-	return CreateJITUser(username, sshKey, p.getNixOSShellPath(), logger)
+	return CreateUser(username, p.getNixOSShellPath(), logger)
 }
 
-func (p *NixOSPlugin) RemoveJITUser(username string, logger *logrus.Logger) error {
+func (p *NixOSPlugin) RemoveUser(username string, logger *logrus.Logger) error {
 	logger.WithField("user", username).Info("Removing JIT user")
 
 	// Use utility function
-	return RemoveJITUser(username, logger)
+	return RemoveUser(username, logger)
 }
 
 func (p *NixOSPlugin) UninstallService(serviceName string, logger *logrus.Logger) error {

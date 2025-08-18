@@ -61,7 +61,6 @@ func (p *LinuxPlugin) GetConfigDirectory() string {
 	return "/etc/p0-ssh-agent"
 }
 
-
 func (p *LinuxPlugin) SetupDirectories(dirs []string, owner string, logger *logrus.Logger) error {
 	for _, dir := range dirs {
 		if dir == "" {
@@ -178,16 +177,15 @@ func (p *LinuxPlugin) writeServiceFile(filePath, content string, logger *logrus.
 	return nil
 }
 
-func (p *LinuxPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logger) error {
+func (p *LinuxPlugin) CreateUser(username string, logger *logrus.Logger) error {
 	// Use utility function with standard Linux shell path
-	return CreateJITUser(username, sshKey, "/bin/bash", logger)
+	return CreateUser(username, "/bin/bash", logger)
 }
 
-func (p *LinuxPlugin) RemoveJITUser(username string, logger *logrus.Logger) error {
+func (p *LinuxPlugin) RemoveUser(username string, logger *logrus.Logger) error {
 	// Use utility function
-	return RemoveJITUser(username, logger)
+	return RemoveUser(username, logger)
 }
-
 
 func (p *LinuxPlugin) UninstallService(serviceName string, logger *logrus.Logger) error {
 	logger.WithField("service", serviceName).Info("Uninstalling systemd service")

@@ -63,7 +63,7 @@ func ensureUserExists(req ProvisioningRequest, logger *logrus.Logger) Provisioni
 	}).Info("Creating new JIT user")
 
 	// Use the OS plugin to create the JIT user
-	if err := osPlugin.CreateJITUser(req.UserName, req.PublicKey, logger); err != nil {
+	if err := osPlugin.CreateUser(req.UserName, logger); err != nil {
 		return ProvisioningResult{
 			Success: false,
 			Error:   fmt.Sprintf("failed to create user with %s plugin: %v", osPlugin.GetName(), err),
@@ -75,4 +75,3 @@ func ensureUserExists(req ProvisioningRequest, logger *logrus.Logger) Provisioni
 		Message: fmt.Sprintf("User %s created successfully with %s plugin", req.UserName, osPlugin.GetName()),
 	}
 }
-
