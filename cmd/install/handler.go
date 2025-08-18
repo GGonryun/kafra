@@ -156,7 +156,6 @@ func detectExecutablePath() (string, error) {
 func runBootstrapSteps(logger *logrus.Logger, allowRoot bool) error {
 	const (
 		defaultBinaryName = "p0-ssh-agent"
-		defaultInstallDir = "/usr/local/bin"
 		defaultConfigDir  = "/etc/p0-ssh-agent"
 		defaultConfigFile = "/etc/p0-ssh-agent/config.yaml"
 	)
@@ -174,10 +173,16 @@ func runBootstrapSteps(logger *logrus.Logger, allowRoot bool) error {
 		return fmt.Errorf("failed to get current executable path: %w", err)
 	}
 
-	destPath := filepath.Join(defaultInstallDir, defaultBinaryName)
+	// Determine the best installation directory
+	installDir, err := determineInstallDir(logger)
+	if err != nil {
+		return fmt.Errorf("failed to determine installation directory: %w", err)
+	}
+
+	destPath := filepath.Join(installDir, defaultBinaryName)
 	if _, err := os.Stat(destPath); os.IsNotExist(err) {
 		logger.Info("📦 Installing binary to system location...")
-		if err := copyBinaryToSystem(currentExe, destPath, logger); err != nil {
+		if err := copyBinaryToSystem(currentExe, destPath, installDir, logger); err != nil {
 			return fmt.Errorf("failed to copy binary: %w", err)
 		}
 		logger.WithField("path", destPath).Info("✅ Binary installed successfully")
@@ -208,11 +213,48 @@ func runBootstrapSteps(logger *logrus.Logger, allowRoot bool) error {
 	return nil
 }
 
-func copyBinaryToSystem(srcPath, destPath string, logger *logrus.Logger) error {
+func determineInstallDir(logger *logrus.Logger) (string, error) {
+	// Prioritized list of installation directories
+	candidateDirs := []string{
+		"/usr/local/bin",  // Standard on most distributions
+		"/usr/bin",        // Fallback for NixOS and minimal systems
+		"/opt/p0/bin",     // Custom location fallback
+	}
+
+	for _, dir := range candidateDirs {
+		// Check if parent directory exists
+		parentDir := filepath.Dir(dir)
+		if _, err := os.Stat(parentDir); err == nil {
+			// Parent exists, check if target directory exists or can be created
+			if _, err := os.Stat(dir); err == nil {
+				logger.WithField("dir", dir).Debug("Found existing installation directory")
+				return dir, nil
+			} else if os.IsNotExist(err) {
+				// Directory doesn't exist but parent does, we can create it
+				logger.WithField("dir", dir).Debug("Will create installation directory")
+				return dir, nil
+			}
+		}
+	}
+
+	return "", fmt.Errorf("no suitable installation directory found")
+}
+
+func copyBinaryToSystem(srcPath, destPath, installDir string, logger *logrus.Logger) error {
 	logger.WithFields(logrus.Fields{
 		"source":      srcPath,
 		"destination": destPath,
 	}).Debug("Copying binary")
+
+	// Ensure installation directory exists
+	if _, err := os.Stat(installDir); os.IsNotExist(err) {
+		logger.WithField("dir", installDir).Debug("Creating installation directory")
+		cmd := exec.Command("sudo", "mkdir", "-p", installDir)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			logger.WithError(err).WithField("output", string(output)).Error("Failed to create installation directory")
+			return fmt.Errorf("failed to create installation directory: %w", err)
+		}
+	}
 
 	cmd := exec.Command("sudo", "cp", srcPath, destPath)
 	if output, err := cmd.CombinedOutput(); err != nil {

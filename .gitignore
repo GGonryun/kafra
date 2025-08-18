@@ -6,3 +6,4 @@ braekhus
 **/dist/*
 **/jwk.private.json
 **/jwk.public.json
+.DS_STORE
