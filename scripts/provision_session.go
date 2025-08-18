@@ -3,8 +3,10 @@ package scripts
 import (
 	"fmt"
 	"os/exec"
+	"os/user"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -34,82 +36,126 @@ func ProvisionSession(req ProvisioningRequest, logger *logrus.Logger) Provisioni
 }
 
 func killUserSSHConnections(username string, logger *logrus.Logger) ProvisioningResult {
-	logger.WithField("username", username).Info("🔍 Finding SSH connections for user")
+	logger.WithField("username", username).Info("🔍 Terminating all user sessions and processes")
 
-	cmd := exec.Command("ps", "aux")
-	output, err := cmd.Output()
+	// Method 1: Try systemd user slice termination first (most effective on systemd systems)
+	terminated := false
+	if commandExists("systemctl") {
+		logger.Debug("Attempting to terminate user slice via systemctl")
+		cmd := exec.Command("sudo", "systemctl", "kill", fmt.Sprintf("user-%s.slice", username))
+		if err := cmd.Run(); err != nil {
+			logger.WithError(err).Debug("Failed to kill user slice, falling back to process-level termination")
+		} else {
+			logger.Info("User slice terminated via systemctl")
+			terminated = true
+		}
+	}
+
+	// Method 2: Get user ID and find all processes owned by the user
+	userInfo, err := user.Lookup(username)
 	if err != nil {
 		return ProvisioningResult{
 			Success: false,
-			Error:   fmt.Sprintf("failed to list processes: %v", err),
+			Error:   fmt.Sprintf("failed to lookup user %s: %v", username, err),
 		}
 	}
 
-	var pidsToKill []string
-	lines := strings.Split(string(output), "\n")
-	
-	for _, line := range lines {
-		if strings.Contains(line, "sshd:") && strings.Contains(line, username+"@") {
-			fields := strings.Fields(line)
-			if len(fields) >= 2 {
-				pid := fields[1]
-				if _, err := strconv.Atoi(pid); err == nil {
-					pidsToKill = append(pidsToKill, pid)
-					logger.WithFields(logrus.Fields{
-						"pid":      pid,
-						"username": username,
-					}).Info("🎯 Found SSH connection to terminate")
+	// Find all processes owned by the user using pgrep
+	cmd := exec.Command("pgrep", "-u", userInfo.Uid)
+	output, err := cmd.Output()
+	if err != nil {
+		// No processes found is not an error
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			logger.WithField("username", username).Info("ℹ️ No active processes found for user")
+			if terminated {
+				return ProvisioningResult{
+					Success: true,
+					Message: fmt.Sprintf("Successfully terminated user slice for %s", username),
 				}
 			}
-		}
-	}
-
-	if len(pidsToKill) == 0 {
-		logger.WithField("username", username).Info("ℹ️ No active SSH connections found for user")
-		return ProvisioningResult{
-			Success: true,
-			Message: fmt.Sprintf("No active SSH connections found for user %s", username),
-		}
-	}
-
-	killedCount := 0
-	var errors []string
-
-	for _, pid := range pidsToKill {
-		logger.WithFields(logrus.Fields{
-			"pid":      pid,
-			"username": username,
-		}).Info("🔪 Terminating SSH connection")
-
-		cmd := exec.Command("kill", "-TERM", pid)
-		if err := cmd.Run(); err != nil {
-			logger.WithField("pid", pid).Warn("SIGTERM failed, trying SIGKILL")
-			cmd = exec.Command("kill", "-KILL", pid)
-			if err := cmd.Run(); err != nil {
-				errMsg := fmt.Sprintf("failed to kill PID %s: %v", pid, err)
-				errors = append(errors, errMsg)
-				logger.WithError(err).WithField("pid", pid).Error("Failed to kill SSH connection")
-				continue
+			return ProvisioningResult{
+				Success: true,
+				Message: fmt.Sprintf("No active processes found for user %s", username),
 			}
 		}
-		killedCount++
-		logger.WithField("pid", pid).Info("✅ SSH connection terminated successfully")
-	}
-
-	if len(errors) > 0 {
 		return ProvisioningResult{
 			Success: false,
-			Error:   fmt.Sprintf("killed %d connections, but failed to kill some: %s", killedCount, strings.Join(errors, "; ")),
+			Error:   fmt.Sprintf("failed to find user processes: %v", err),
+		}
+	}
+
+	if len(output) == 0 {
+		logger.WithField("username", username).Info("ℹ️ No active processes found for user")
+		return ProvisioningResult{
+			Success: true,
+			Message: fmt.Sprintf("No active processes found for user %s", username),
+		}
+	}
+
+	// Parse PIDs
+	pidLines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	var validPids []string
+	for _, pidStr := range pidLines {
+		pidStr = strings.TrimSpace(pidStr)
+		if pidStr != "" {
+			if _, err := strconv.Atoi(pidStr); err == nil {
+				validPids = append(validPids, pidStr)
+			}
+		}
+	}
+
+	if len(validPids) == 0 {
+		logger.WithField("username", username).Info("ℹ️ No valid PIDs found for user")
+		return ProvisioningResult{
+			Success: true,
+			Message: fmt.Sprintf("No active processes found for user %s", username),
 		}
 	}
 
 	logger.WithFields(logrus.Fields{
-		"username":     username,
-		"killed_count": killedCount,
-	}).Info("✅ All SSH connections terminated successfully")
+		"username": username,
+		"pid_count": len(validPids),
+		"pids": strings.Join(validPids, ","),
+	}).Info("🎯 Found user processes to terminate")
 
+	// Kill processes gracefully first (SIGTERM)
+	cmd = exec.Command("sudo", "pkill", "-TERM", "-u", userInfo.Uid)
+	if err := cmd.Run(); err != nil {
+		logger.WithError(err).Debug("SIGTERM failed, trying SIGKILL")
+	} else {
+		logger.Debug("Sent SIGTERM to user processes")
+		// Give processes a moment to terminate gracefully
+		time.Sleep(2 * time.Second)
+	}
+
+	// Force kill remaining processes (SIGKILL)
+	cmd = exec.Command("sudo", "pkill", "-KILL", "-u", userInfo.Uid)
+	if err := cmd.Run(); err != nil {
+		logger.WithError(err).Debug("SIGKILL failed - processes may have already terminated")
+	} else {
+		logger.Debug("Sent SIGKILL to remaining user processes")
+	}
+
+	// Verify termination by checking if processes still exist
+	cmd = exec.Command("pgrep", "-u", userInfo.Uid)
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 1 {
+			logger.WithFields(logrus.Fields{
+				"username": username,
+				"terminated_count": len(validPids),
+			}).Info("✅ All user processes terminated successfully")
+
+			return ProvisioningResult{
+				Success: true,
+				Message: fmt.Sprintf("Successfully terminated %d processes for user %s", len(validPids), username),
+			}
+		}
+	}
+
+	// Some processes may still be running, but we've done our best
+	logger.WithField("username", username).Warn("Some processes may still be running, but termination signals were sent")
 	return ProvisioningResult{
 		Success: true,
-		Message: fmt.Sprintf("Successfully terminated %d SSH connections for user %s", killedCount, username),
+		Message: fmt.Sprintf("Termination signals sent to %d processes for user %s", len(validPids), username),
 	}
 }
