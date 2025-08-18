@@ -1,3 +1,5 @@
+//go:build nixos
+
 package osplugins
 
 import (
@@ -20,27 +22,7 @@ func (p *NixOSPlugin) GetName() string {
 	return "nixos"
 }
 
-func (p *NixOSPlugin) Detect() bool {
-	// Check for NixOS-specific files/directories
-	nixOSIndicators := []string{
-		"/etc/nixos",
-		"/nix/store",
-		"/run/current-system",
-	}
-
-	for _, indicator := range nixOSIndicators {
-		if _, err := os.Stat(indicator); err == nil {
-			return true
-		}
-	}
-
-	// Check /etc/os-release for NixOS
-	if content, err := os.ReadFile("/etc/os-release"); err == nil {
-		return strings.Contains(string(content), "ID=nixos")
-	}
-
-	return false
-}
+// No need for Detect() method - build tags ensure only appropriate plugin is compiled
 
 func (p *NixOSPlugin) GetInstallDirectories() []string {
 	return []string{

@@ -6,11 +6,8 @@ import (
 
 // OSPlugin defines the interface for operating system specific implementations
 type OSPlugin interface {
-	// GetName returns the name of the OS plugin (e.g., "nixos", "ubuntu", "centos")
+	// GetName returns the name of the OS plugin (e.g., "nixos", "linux")
 	GetName() string
-	
-	// Detect returns true if this plugin should be used for the current system
-	Detect() bool
 	
 	// GetInstallDirectories returns prioritized list of binary installation directories
 	GetInstallDirectories() []string

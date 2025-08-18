@@ -40,65 +40,76 @@ build-ubuntu:
 	@echo "Building $(BINARY_NAME) for Ubuntu (amd64, arm64)..."
 	@mkdir -p $(DIST_DIR)/ubuntu/amd64 $(DIST_DIR)/ubuntu/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/ubuntu/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/ubuntu/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 build-debian:
 	@echo "Building $(BINARY_NAME) for Debian (amd64, arm64, arm)..."
 	@mkdir -p $(DIST_DIR)/debian/amd64 $(DIST_DIR)/debian/arm64 $(DIST_DIR)/debian/arm
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/debian/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/debian/arm64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/debian/arm/$(BINARY_NAME) $(CMD_DIR)
 
 build-centos:
 	@echo "Building $(BINARY_NAME) for CentOS/RHEL (amd64, arm64)..."
 	@mkdir -p $(DIST_DIR)/centos/amd64 $(DIST_DIR)/centos/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/centos/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/centos/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 build-fedora:
 	@echo "Building $(BINARY_NAME) for Fedora (amd64, arm64)..."
 	@mkdir -p $(DIST_DIR)/fedora/amd64 $(DIST_DIR)/fedora/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/fedora/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/fedora/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 build-arch:
 	@echo "Building $(BINARY_NAME) for Arch Linux (amd64, arm64)..."
 	@mkdir -p $(DIST_DIR)/arch/amd64 $(DIST_DIR)/arch/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/arch/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
+		-tags 'linux' \
 		-o $(DIST_DIR)/arch/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 build-alpine:
 	@echo "Building $(BINARY_NAME) for Alpine Linux (amd64, arm64, arm)..."
 	@mkdir -p $(DIST_DIR)/alpine/amd64 $(DIST_DIR)/alpine/arm64 $(DIST_DIR)/alpine/arm
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-tags 'osusergo netgo static_build' \
+		-tags 'linux osusergo netgo static_build' \
 		-o $(DIST_DIR)/alpine/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-tags 'osusergo netgo static_build' \
+		-tags 'linux osusergo netgo static_build' \
 		-o $(DIST_DIR)/alpine/arm64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-tags 'osusergo netgo static_build' \
+		-tags 'linux osusergo netgo static_build' \
 		-o $(DIST_DIR)/alpine/arm/$(BINARY_NAME) $(CMD_DIR)
 
 build-nixos:
 	@echo "Building $(BINARY_NAME) for NixOS (amd64, arm64)..."
 	@mkdir -p $(DIST_DIR)/nixos/amd64 $(DIST_DIR)/nixos/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-tags 'osusergo netgo static_build' \
+		-tags 'nixos osusergo netgo static_build' \
 		-o $(DIST_DIR)/nixos/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-tags 'osusergo netgo static_build' \
+		-tags 'nixos osusergo netgo static_build' \
 		-o $(DIST_DIR)/nixos/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 # Build for Windows

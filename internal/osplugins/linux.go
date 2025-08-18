@@ -1,3 +1,5 @@
+//go:build linux
+
 package osplugins
 
 import (
@@ -20,11 +22,7 @@ func (p *LinuxPlugin) GetName() string {
 	return "linux"
 }
 
-func (p *LinuxPlugin) Detect() bool {
-	// This is the fallback plugin - always returns true for generic Linux
-	// It should be checked last by the plugin manager
-	return true
-}
+// No need for Detect() method - build tags ensure only appropriate plugin is compiled
 
 func (p *LinuxPlugin) GetInstallDirectories() []string {
 	return []string{

@@ -59,8 +59,7 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 		logger.SetLevel(logrus.InfoLevel)
 	}
 
-	// Load and select appropriate OS plugin
-	osplugins.LoadAllPlugins()
+	// Select appropriate OS plugin (auto-registered via init() functions)
 	osPlugin, err := osplugins.GetPlugin(logger)
 	if err != nil {
 		logger.WithError(err).Error("Failed to select OS plugin")
@@ -167,7 +166,7 @@ func runBootstrapSteps(logger *logrus.Logger, allowRoot bool, osPlugin osplugins
 	const (
 		defaultBinaryName = "p0-ssh-agent"
 	)
-	
+
 	defaultConfigDir := osPlugin.GetConfigDirectory()
 	defaultConfigFile := filepath.Join(defaultConfigDir, "config.yaml")
 
