@@ -3,6 +3,8 @@
 package osplugins
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -66,16 +68,34 @@ func (p *NixOSPlugin) isSystemdHomedAvailable() bool {
 	return cmd.Run() == nil
 }
 
+// generateRandomPassword creates a random 32-character password
+func (p *NixOSPlugin) generateRandomPassword() (string, error) {
+	bytes := make([]byte, 16) // 16 bytes = 32 hex characters
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate random password: %w", err)
+	}
+	return hex.EncodeToString(bytes), nil
+}
+
 func (p *NixOSPlugin) createUserWithHomed(username, homeDir string, logger *logrus.Logger) error {
 	logger.WithField("user", username).Info("Creating user with systemd-homed")
 
-	// Create user with homectl
+	// Generate random password
+	password, err := p.generateRandomPassword()
+	if err != nil {
+		logger.WithError(err).Error("Failed to generate random password")
+		return fmt.Errorf("failed to generate password: %w", err)
+	}
+
+	// Create user with homectl using NEWPASSWORD environment variable
 	cmd := exec.Command("sudo", "homectl", "create", username,
 		"--real-name", fmt.Sprintf("P0 Service User %s", username),
 		"--shell", "/bin/false",
 		"--home-dir", homeDir,
 		"--storage=directory",
 	)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("NEWPASSWORD=%s", password))
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -147,7 +167,9 @@ func (p *NixOSPlugin) GetSystemInfo() map[string]string {
 func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, _ /* serviceUser */, executablePath, configPath string, logger *logrus.Logger) error {
 	workingDir := filepath.Dir(configPath)
 
-	nixConfig := fmt.Sprintf(`# Add this to your /etc/nixos/configuration.nix file:
+	nixConfig := fmt.Sprintf(`# Add this to your /etc/nixos/configuration.nix file inside the config block:
+# If your configuration.nix doesn't have { config, pkgs, lib, ... }: at the top, add lib:
+# { config, pkgs, lib, ... }:
 
 # REQUIRED: Enable systemd-homed for JIT user management
 services.homed.enable = true;
@@ -184,6 +206,12 @@ systemd.services.%s = {
     ProtectKernelTunables = true;
     ProtectKernelModules = true;
     ProtectControlGroups = true;
+  };
+  
+  # Environment variables - extend PATH to include system binaries needed for user management
+  environment = {
+    PATH = lib.mkForce "/run/current-system/sw/bin:/run/current-system/sw/sbin:/usr/bin:/bin";
+    HOME = "/root";
   };
 };`, serviceName, workingDir, executablePath, configPath, serviceName)
 
@@ -232,12 +260,20 @@ func (p *NixOSPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logg
 		return fmt.Errorf("systemd-homed service is not enabled - required for NixOS user management")
 	}
 
-	// Create user with homectl
+	// Generate random password
+	password, err := p.generateRandomPassword()
+	if err != nil {
+		logger.WithError(err).Error("Failed to generate random password")
+		return fmt.Errorf("failed to generate password: %w", err)
+	}
+
+	// Create user with homectl using NEWPASSWORD environment variable
 	cmd = exec.Command("sudo", "homectl", "create", username,
 		"--real-name", fmt.Sprintf("P0 JIT User %s", username),
-		"--shell", "/bin/bash",
+		"--shell", "/run/current-system/sw/bin/bash",
 		"--home-dir", fmt.Sprintf("/home/%s", username),
 	)
+	cmd.Env = append(os.Environ(), fmt.Sprintf("NEWPASSWORD=%s", password))
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
