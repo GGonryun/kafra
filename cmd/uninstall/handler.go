@@ -13,7 +13,6 @@ import (
 func NewUninstallCommand(verbose *bool, configPath *string) *cobra.Command {
 	var (
 		serviceName string
-		serviceUser string
 		force       bool
 	)
 
@@ -31,18 +30,17 @@ This command reverses everything done by the install command.
 
 WARNING: This will permanently delete all configuration, keys, and logs.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runUninstall(*verbose, *configPath, serviceName, serviceUser, force)
+			return runUninstall(*verbose, *configPath, serviceName, force)
 		},
 	}
 
 	cmd.Flags().StringVar(&serviceName, "service-name", "p0-ssh-agent", "Name of the systemd service to remove")
-	cmd.Flags().StringVar(&serviceUser, "user", "p0-agent", "Service user to remove")
 	cmd.Flags().BoolVar(&force, "force", false, "Force removal without confirmation prompts")
 
 	return cmd
 }
 
-func runUninstall(verbose bool, configPath string, serviceName, serviceUser string, force bool) error {
+func runUninstall(verbose bool, configPath string, serviceName string, force bool) error {
 	logger := logrus.New()
 	if verbose {
 		logger.SetLevel(logrus.DebugLevel)
@@ -62,7 +60,6 @@ func runUninstall(verbose bool, configPath string, serviceName, serviceUser stri
 
 	logger.WithFields(logrus.Fields{
 		"service_name": serviceName,
-		"service_user": serviceUser,
 		"config_path":  configPath,
 		"force":        force,
 		"os_plugin":    osPlugin.GetName(),

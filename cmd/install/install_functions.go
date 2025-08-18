@@ -13,24 +13,17 @@ import (
 	"p0-ssh-agent/types"
 )
 
-func createServiceUser(serviceUser, keyPath string, osPlugin osplugins.OSPlugin, logger *logrus.Logger) error {
-	logger.WithField("user", serviceUser).Info("Creating service user")
-
-	// Use the OS plugin to create the user
-	return osPlugin.CreateUser(serviceUser, keyPath, logger)
-}
-
-func createDirectories(cfg *types.Config, serviceUser string, osPlugin osplugins.OSPlugin, logger *logrus.Logger) error {
+func createDirectories(cfg *types.Config, osPlugin osplugins.OSPlugin, logger *logrus.Logger) error {
 	directories := []string{
 		cfg.KeyPath,
 		filepath.Dir(cfg.LogPath),
 	}
 
-	// Use the OS plugin to setup directories
-	return osPlugin.SetupDirectories(directories, serviceUser, logger)
+	// Use the OS plugin to setup directories (with root ownership)
+	return osPlugin.SetupDirectories(directories, "root", logger)
 }
 
-func generateJWTKeys(keyPath, serviceUser, executablePath string, logger *logrus.Logger) error {
+func generateJWTKeys(keyPath, executablePath string, logger *logrus.Logger) error {
 	logger.WithField("key_path", keyPath).Info("Generating JWT keys")
 
 	privateKeyPath := filepath.Join(keyPath, "jwk.private.json")
@@ -53,7 +46,7 @@ func generateJWTKeys(keyPath, serviceUser, executablePath string, logger *logrus
 	return nil
 }
 
-func createLogFile(logPath, serviceUser string, logger *logrus.Logger) error {
+func createLogFile(logPath string, logger *logrus.Logger) error {
 	if logPath == "" {
 		logger.Info("No log path specified, using stdout/stderr")
 		return nil
@@ -92,7 +85,7 @@ func createLogFile(logPath, serviceUser string, logger *logrus.Logger) error {
 	return nil
 }
 
-func displayInstallationSuccess(serviceName, serviceUser, configPath, executablePath string) {
+func displayInstallationSuccess(serviceName, configPath, executablePath string) {
 	fmt.Println("\n" + strings.Repeat("=", 60))
 	fmt.Println("🎉 P0 SSH Agent Installation Complete!")
 	fmt.Println(strings.Repeat("=", 60))

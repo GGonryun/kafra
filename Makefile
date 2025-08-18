@@ -95,10 +95,10 @@ build-nixos:
 	@echo "Building $(BINARY_NAME) for NixOS (amd64, arm64)..."
 	@mkdir -p $(DIST_DIR)/nixos/amd64 $(DIST_DIR)/nixos/arm64
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-tags 'nixos osusergo netgo static_build' \
+		-tags 'osusergo netgo static_build' \
 		-o $(DIST_DIR)/nixos/amd64/$(BINARY_NAME) $(CMD_DIR)
 	GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build $(BUILD_FLAGS) \
-		-tags 'nixos osusergo netgo static_build' \
+		-tags 'osusergo netgo static_build' \
 		-o $(DIST_DIR)/nixos/arm64/$(BINARY_NAME) $(CMD_DIR)
 
 # Build for Windows

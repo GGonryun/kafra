@@ -1,10 +1,6 @@
-//go:build nixos
-
 package osplugins
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"os/exec"
@@ -16,15 +12,46 @@ import (
 
 type NixOSPlugin struct{}
 
+// NewNixOSPlugin creates a new NixOS plugin instance
+func NewNixOSPlugin() *NixOSPlugin {
+	return &NixOSPlugin{}
+}
+
+// getNixOSShellPath detects and returns the appropriate shell path for NixOS
+func (p *NixOSPlugin) getNixOSShellPath() string {
+	nixosShellPath := "/run/current-system/sw/bin/bash"
+	if _, err := os.Stat(nixosShellPath); err != nil {
+		// Fallback to standard shell if NixOS path doesn't exist
+		return "/bin/bash"
+	}
+	return nixosShellPath
+}
+
 func init() {
-	Register(&NixOSPlugin{})
+	// Register will be called by LoadPlugins() based on OS detection
 }
 
 func (p *NixOSPlugin) GetName() string {
 	return "nixos"
 }
 
-// No need for Detect() method - build tags ensure only appropriate plugin is compiled
+// Detect checks if this is a NixOS system
+func (p *NixOSPlugin) Detect() bool {
+	// Check for NixOS-specific files/directories
+	if _, err := os.Stat("/etc/nixos"); err == nil {
+		return true
+	}
+	if _, err := os.Stat("/run/current-system"); err == nil {
+		return true
+	}
+	// Check for nixos in os-release
+	if content, err := os.ReadFile("/etc/os-release"); err == nil {
+		if strings.Contains(strings.ToLower(string(content)), "nixos") {
+			return true
+		}
+	}
+	return false
+}
 
 func (p *NixOSPlugin) GetInstallDirectories() []string {
 	return []string{
@@ -33,90 +60,16 @@ func (p *NixOSPlugin) GetInstallDirectories() []string {
 	}
 }
 
-func (p *NixOSPlugin) CreateSystemdService(serviceName, serviceUser, executablePath, configPath string, logger *logrus.Logger) error {
+func (p *NixOSPlugin) CreateSystemdService(serviceName, executablePath, configPath string, logger *logrus.Logger) error {
 	logger.Info("🐧 NixOS detected - generating configuration snippet instead of direct service creation")
-	return p.generateNixOSServiceConfig(serviceName, serviceUser, executablePath, configPath, logger)
+	return p.generateNixOSServiceConfig(serviceName, executablePath, configPath, logger)
 }
 
 func (p *NixOSPlugin) GetConfigDirectory() string {
 	return "/etc/p0-ssh-agent"
 }
 
-func (p *NixOSPlugin) CreateUser(username, homeDir string, logger *logrus.Logger) error {
-	logger.WithField("user", username).Info("Creating service user")
 
-	// Check if user already exists
-	cmd := exec.Command("id", username)
-	if cmd.Run() == nil {
-		logger.WithField("user", username).Info("✅ Service user already exists")
-		return nil
-	}
-
-	// Check if systemd-homed is available - this is required for NixOS
-	if !p.isSystemdHomedAvailable() {
-		return p.provideSystemdHomedSetupInstructions(username, homeDir, logger)
-	}
-
-	// Create user with systemd-homed
-	logger.WithField("user", username).Info("Creating user with systemd-homed")
-	return p.createUserWithHomed(username, homeDir, logger)
-}
-
-func (p *NixOSPlugin) isSystemdHomedAvailable() bool {
-	// Check if systemd-homed service is running
-	cmd := exec.Command("systemctl", "is-active", "systemd-homed")
-	return cmd.Run() == nil
-}
-
-// generateRandomPassword creates a random 32-character password
-func (p *NixOSPlugin) generateRandomPassword() (string, error) {
-	bytes := make([]byte, 16) // 16 bytes = 32 hex characters
-	_, err := rand.Read(bytes)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate random password: %w", err)
-	}
-	return hex.EncodeToString(bytes), nil
-}
-
-func (p *NixOSPlugin) createUserWithHomed(username, homeDir string, logger *logrus.Logger) error {
-	logger.WithField("user", username).Info("Creating user with systemd-homed")
-
-	// Generate random password
-	password, err := p.generateRandomPassword()
-	if err != nil {
-		logger.WithError(err).Error("Failed to generate random password")
-		return fmt.Errorf("failed to generate password: %w", err)
-	}
-
-	// Create user with homectl using NEWPASSWORD environment variable
-	cmdStr := fmt.Sprintf("sudo NEWPASSWORD=%s homectl create %s --real-name '%s' --shell '/bin/false' --home-dir '%s' --storage=directory",
-		password, username, fmt.Sprintf("P0 Service User %s", username), homeDir)
-	cmd := exec.Command("bash", "-c", cmdStr)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logger.WithError(err).WithField("output", string(output)).Error("Failed to create user with homectl")
-		return fmt.Errorf("homectl create failed: %w", err)
-	}
-
-	// Activate the user to mount/prepare the home directory
-	logger.WithField("user", username).Info("Activating user home directory")
-	cmdStr = fmt.Sprintf("expect -c \"spawn sudo homectl activate %s; expect \\\"Password:\\\"; send \\\"%s\\r\\\"; interact\"", username, password)
-	cmd = exec.Command("bash", "-c", cmdStr)
-	output, err = cmd.CombinedOutput()
-	if err != nil {
-		logger.WithError(err).WithField("output", string(output)).Error("Failed to activate user home directory")
-		return fmt.Errorf("homectl activate failed: %w", err)
-	}
-
-	logger.WithField("user", username).Info("✅ Service user created and activated successfully with systemd-homed")
-	return nil
-}
-
-func (p *NixOSPlugin) provideSystemdHomedSetupInstructions(username, homeDir string, logger *logrus.Logger) error {
-	logger.WithField("user", username).Error("⚠️  systemd-homed is required but not enabled")
-	return fmt.Errorf("systemd-homed is not enabled - add 'services.homed.enable = true;' to /etc/nixos/configuration.nix and run 'sudo nixos-rebuild switch'")
-}
 
 func (p *NixOSPlugin) SetupDirectories(dirs []string, owner string, logger *logrus.Logger) error {
 	for _, dir := range dirs {
@@ -161,7 +114,7 @@ func (p *NixOSPlugin) GetSystemInfo() map[string]string {
 	return info
 }
 
-func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, _ /* serviceUser */, executablePath, configPath string, logger *logrus.Logger) error {
+func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, executablePath, configPath string, logger *logrus.Logger) error {
 	workingDir := filepath.Dir(configPath)
 
 	nixConfig := fmt.Sprintf(`# Add this to your /etc/nixos/configuration.nix file inside the config block:
@@ -243,116 +196,17 @@ systemd.services.%s = {
 }
 
 func (p *NixOSPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logger) error {
-	logger.WithField("user", username).Info("Creating JIT user")
+	logger.WithField("user", username).Info("Creating JIT user with NixOS shell path")
 
-	// Check if user already exists
-	cmd := exec.Command("id", username)
-	if cmd.Run() == nil {
-		logger.WithField("user", username).Info("✅ JIT user already exists")
-		return nil
-	}
-
-	// Check if systemd-homed is available
-	if !p.isSystemdHomedAvailable() {
-		return fmt.Errorf("systemd-homed service is not enabled - required for NixOS user management")
-	}
-
-	// Generate random password
-	password, err := p.generateRandomPassword()
-	if err != nil {
-		logger.WithError(err).Error("Failed to generate random password")
-		return fmt.Errorf("failed to generate password: %w", err)
-	}
-
-	// Create user with homectl using NEWPASSWORD environment variable
-	cmdStr := fmt.Sprintf("sudo NEWPASSWORD=%s homectl create %s --real-name '%s' --shell '/run/current-system/sw/bin/bash' --home-dir '/home/%s'",
-		password, username, fmt.Sprintf("P0 JIT User %s", username), username)
-	cmd = exec.Command("bash", "-c", cmdStr)
-
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logger.WithError(err).WithField("output", string(output)).Error("Failed to create JIT user")
-		return fmt.Errorf("failed to create JIT user: %w", err)
-	}
-
-	// Add SSH key if provided
-	if sshKey != "" {
-		err = p.addSSHKeyToUser(username, sshKey, logger)
-		if err != nil {
-			logger.WithError(err).Warn("Failed to add SSH key, but user was created")
-		}
-	}
-
-	logger.WithField("user", username).Info("✅ JIT user created and activated successfully")
-	return nil
+	// Use utility function with NixOS-specific shell path
+	return CreateJITUser(username, sshKey, p.getNixOSShellPath(), logger)
 }
 
 func (p *NixOSPlugin) RemoveJITUser(username string, logger *logrus.Logger) error {
 	logger.WithField("user", username).Info("Removing JIT user")
 
-	// Check if user exists
-	cmd := exec.Command("id", username)
-	if cmd.Run() != nil {
-		logger.WithField("user", username).Info("User does not exist, nothing to remove")
-		return nil
-	}
-
-	// Check if systemd-homed is available
-	if !p.isSystemdHomedAvailable() {
-		return fmt.Errorf("systemd-homed service is not enabled - required for NixOS user management")
-	}
-
-	// Remove user with homectl
-	cmd = exec.Command("sudo", "homectl", "remove", username)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		logger.WithError(err).WithField("output", string(output)).Error("Failed to remove JIT user")
-		return fmt.Errorf("failed to remove JIT user: %w", err)
-	}
-
-	logger.WithField("user", username).Info("✅ JIT user removed successfully")
-	return nil
-}
-
-func (p *NixOSPlugin) addSSHKeyToUser(username, sshKey string, logger *logrus.Logger) error {
-	logger.WithField("user", username).Info("Adding SSH key to user")
-
-	// Create authorized_keys file
-	homeDir := fmt.Sprintf("/home/%s", username)
-	sshDir := fmt.Sprintf("%s/.ssh", homeDir)
-	authorizedKeysFile := fmt.Sprintf("%s/authorized_keys", sshDir)
-
-	// Create .ssh directory
-	cmd := exec.Command("sudo", "mkdir", "-p", sshDir)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create .ssh directory: %w", err)
-	}
-
-	// Write SSH key
-	cmd = exec.Command("sudo", "tee", authorizedKeysFile)
-	cmd.Stdin = strings.NewReader(sshKey + "\n")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to write SSH key: %w", err)
-	}
-
-	// Set proper permissions
-	cmd = exec.Command("sudo", "chown", "-R", fmt.Sprintf("%s:%s", username, username), sshDir)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to set SSH directory ownership: %w", err)
-	}
-
-	cmd = exec.Command("sudo", "chmod", "700", sshDir)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to set SSH directory permissions: %w", err)
-	}
-
-	cmd = exec.Command("sudo", "chmod", "600", authorizedKeysFile)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to set authorized_keys permissions: %w", err)
-	}
-
-	logger.WithField("user", username).Info("✅ SSH key added successfully")
-	return nil
+	// Use utility function
+	return RemoveJITUser(username, logger)
 }
 
 func (p *NixOSPlugin) UninstallService(serviceName string, logger *logrus.Logger) error {

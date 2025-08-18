@@ -16,7 +16,6 @@ import (
 func NewInstallCommand(verbose *bool, configPath *string) *cobra.Command {
 	var (
 		serviceName string
-		serviceUser string
 		allowRoot   bool
 	)
 
@@ -40,18 +39,17 @@ This command does NOT automatically start the service - you must manually:
 SECURITY NOTE: By default, this command prevents running as root for security reasons.
 Use --allow-root flag only when necessary (e.g., in containers or restricted environments).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCompleteInstall(*verbose, *configPath, serviceName, serviceUser, allowRoot)
+			return runCompleteInstall(*verbose, *configPath, serviceName, allowRoot)
 		},
 	}
 
 	cmd.Flags().StringVar(&serviceName, "service-name", "p0-ssh-agent", "Name for the systemd service")
-	cmd.Flags().StringVar(&serviceUser, "user", "p0-agent", "User to run the service as")
 	cmd.Flags().BoolVar(&allowRoot, "allow-root", false, "Allow installation to run as root (WARNING: Not recommended for security reasons)")
 
 	return cmd
 }
 
-func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUser string, allowRoot bool) error {
+func runCompleteInstall(verbose bool, configPath string, serviceName string, allowRoot bool) error {
 	logger := logrus.New()
 	if verbose {
 		logger.SetLevel(logrus.DebugLevel)
@@ -72,7 +70,6 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 
 	logger.WithFields(logrus.Fields{
 		"service_name": serviceName,
-		"service_user": serviceUser,
 		"config_path":  configPath,
 		"os_plugin":    osPlugin.GetName(),
 	}).Info("🚀 Starting complete P0 SSH Agent installation")
@@ -101,37 +98,31 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 	}
 	logger.WithField("path", executablePath).Info("✅ Executable path detected")
 
-	logger.Info("👤 Step 3: Creating service user")
-	if err := createServiceUser(serviceUser, cfg.KeyPath, osPlugin, logger); err != nil {
-		logger.WithError(err).Error("Failed to create service user")
-		return fmt.Errorf("failed to create service user: %w", err)
-	}
-
-	logger.Info("📁 Step 4: Creating directories")
-	if err := createDirectories(cfg, serviceUser, osPlugin, logger); err != nil {
+	logger.Info("📁 Step 3: Creating directories")
+	if err := createDirectories(cfg, osPlugin, logger); err != nil {
 		logger.WithError(err).Error("Failed to create directories")
 		return fmt.Errorf("failed to create directories: %w", err)
 	}
 
-	logger.Info("🔐 Step 5: Generating JWT keys")
-	if err := generateJWTKeys(cfg.KeyPath, serviceUser, executablePath, logger); err != nil {
+	logger.Info("🔐 Step 4: Generating JWT keys")
+	if err := generateJWTKeys(cfg.KeyPath, executablePath, logger); err != nil {
 		logger.WithError(err).Error("Failed to generate JWT keys")
 		return fmt.Errorf("failed to generate JWT keys: %w", err)
 	}
 
-	logger.Info("📄 Step 6: Creating log file")
-	if err := createLogFile(cfg.LogPath, serviceUser, logger); err != nil {
+	logger.Info("📄 Step 5: Creating log file")
+	if err := createLogFile(cfg.LogPath, logger); err != nil {
 		logger.WithError(err).Error("Failed to create log file")
 		return fmt.Errorf("failed to create log file: %w", err)
 	}
 
-	logger.Info("⚙️  Step 7: Creating systemd service")
-	if err := osPlugin.CreateSystemdService(serviceName, serviceUser, executablePath, configPath, logger); err != nil {
+	logger.Info("⚙️  Step 6: Creating systemd service")
+	if err := osPlugin.CreateSystemdService(serviceName, executablePath, configPath, logger); err != nil {
 		logger.WithError(err).Error("Failed to create systemd service")
 		return fmt.Errorf("failed to create systemd service: %w", err)
 	}
 
-	displayInstallationSuccess(serviceName, serviceUser, configPath, executablePath)
+	displayInstallationSuccess(serviceName, configPath, executablePath)
 
 	return nil
 }

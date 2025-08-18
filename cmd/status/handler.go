@@ -21,7 +21,7 @@ func NewStatusCommand(verbose *bool, configPath *string) *cobra.Command {
 		Short: "Check P0 SSH Agent installation and system status",
 		Long: `Validate P0 SSH Agent installation including:
 - Configuration file validation
-- Service user existence and permissions
+- System permissions and ownership
 - JWT key presence and validity
 - Log file accessibility
 - Systemd service status and configuration
@@ -75,20 +75,10 @@ func runStatusCheck(verbose bool, configPath string) error {
 		allChecksPass = false
 	}
 
-	fmt.Print("👤 Service user... ")
-	serviceUser := "p0-agent"
-	userValid := checkServiceUser(serviceUser, cfg, logger)
-	if userValid {
-		fmt.Println("✅ EXISTS")
-	} else {
-		fmt.Println("❌ MISSING")
-		allChecksPass = false
-	}
-
 	fmt.Print("🔐 JWT keys... ")
 	keysValid := false
 	if cfg != nil {
-		keysValid = checkJWTKeys(cfg.KeyPath, serviceUser, logger)
+		keysValid = checkJWTKeys(cfg.KeyPath, logger)
 	}
 	if keysValid {
 		fmt.Println("✅ PRESENT")
@@ -100,7 +90,7 @@ func runStatusCheck(verbose bool, configPath string) error {
 	fmt.Print("📁 Directory permissions... ")
 	dirsValid := false
 	if cfg != nil {
-		dirsValid = checkDirectoryPermissions(cfg, serviceUser, logger)
+		dirsValid = checkDirectoryPermissions(cfg, logger)
 	}
 	if dirsValid {
 		fmt.Println("✅ CORRECT")
@@ -112,7 +102,7 @@ func runStatusCheck(verbose bool, configPath string) error {
 	fmt.Print("📄 Log file... ")
 	logValid := false
 	if cfg != nil {
-		logValid = checkLogFile(cfg.LogPath, serviceUser, logger)
+		logValid = checkLogFile(cfg.LogPath, logger)
 	}
 	if logValid {
 		fmt.Println("✅ ACCESSIBLE")
@@ -177,26 +167,8 @@ func checkConfiguration(configPath string, logger *logrus.Logger) (*types.Config
 	return cfg, true
 }
 
-func checkServiceUser(serviceUser string, cfg *types.Config, logger *logrus.Logger) bool {
-	logger.WithField("user", serviceUser).Debug("Checking service user")
 
-	cmd := exec.Command("id", serviceUser)
-	if err := cmd.Run(); err != nil {
-		logger.WithField("user", serviceUser).Error("Service user not found")
-		return false
-	}
-
-	if cfg != nil && cfg.KeyPath != "" {
-		if _, err := os.Stat(cfg.KeyPath); os.IsNotExist(err) {
-			logger.WithField("path", cfg.KeyPath).Error("User's key directory not found")
-			return false
-		}
-	}
-
-	return true
-}
-
-func checkJWTKeys(keyPath, serviceUser string, logger *logrus.Logger) bool {
+func checkJWTKeys(keyPath string, logger *logrus.Logger) bool {
 	if keyPath == "" {
 		logger.Debug("No key path specified")
 		return true
@@ -217,16 +189,16 @@ func checkJWTKeys(keyPath, serviceUser string, logger *logrus.Logger) bool {
 		return false
 	}
 
-	cmd := exec.Command("sudo", "-u", serviceUser, "test", "-r", privateKeyPath)
-	if err := cmd.Run(); err != nil {
-		logger.WithField("user", serviceUser).Error("Service user cannot read private key")
+	// Since service runs as root, just check if files are readable by root
+	if _, err := os.Open(privateKeyPath); err != nil {
+		logger.WithField("path", privateKeyPath).Error("Cannot read private key")
 		return false
 	}
 
 	return true
 }
 
-func checkDirectoryPermissions(cfg *types.Config, serviceUser string, logger *logrus.Logger) bool {
+func checkDirectoryPermissions(cfg *types.Config, logger *logrus.Logger) bool {
 	directories := []string{cfg.KeyPath}
 	
 	if cfg.LogPath != "" {
@@ -245,12 +217,15 @@ func checkDirectoryPermissions(cfg *types.Config, serviceUser string, logger *lo
 			return false
 		}
 
-		cmd := exec.Command("sudo", "-u", serviceUser, "test", "-d", dir)
-		if err := cmd.Run(); err != nil {
-			logger.WithFields(logrus.Fields{
-				"dir":  dir,
-				"user": serviceUser,
-			}).Error("Service user cannot access directory")
+		// Since service runs as root, just check if directory exists and is accessible
+		info, err := os.Stat(dir)
+		if err != nil {
+			logger.WithField("dir", dir).Error("Cannot access directory")
+			return false
+		}
+
+		if !info.IsDir() {
+			logger.WithField("dir", dir).Error("Path is not a directory")
 			return false
 		}
 	}
@@ -258,7 +233,7 @@ func checkDirectoryPermissions(cfg *types.Config, serviceUser string, logger *lo
 	return true
 }
 
-func checkLogFile(logPath, serviceUser string, logger *logrus.Logger) bool {
+func checkLogFile(logPath string, logger *logrus.Logger) bool {
 	if logPath == "" {
 		logger.Debug("No log path specified, using stdout/stderr")
 		return true
@@ -271,14 +246,13 @@ func checkLogFile(logPath, serviceUser string, logger *logrus.Logger) bool {
 		return false
 	}
 
-	cmd := exec.Command("sudo", "-u", serviceUser, "test", "-w", logPath)
-	if err := cmd.Run(); err != nil {
-		logger.WithFields(logrus.Fields{
-			"path": logPath,
-			"user": serviceUser,
-		}).Error("Service user cannot write to log file")
+	// Since service runs as root, just check if log file is writable
+	file, err := os.OpenFile(logPath, os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		logger.WithField("path", logPath).Error("Cannot write to log file")
 		return false
 	}
+	file.Close()
 
 	return true
 }
