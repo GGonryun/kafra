@@ -16,6 +16,7 @@ func NewInstallCommand(verbose *bool, configPath *string) *cobra.Command {
 	var (
 		serviceName string
 		serviceUser string
+		allowRoot   bool
 	)
 
 	cmd := &cobra.Command{
@@ -33,19 +34,23 @@ func NewInstallCommand(verbose *bool, configPath *string) *cobra.Command {
 This command does NOT automatically start the service - you must manually:
 1. Edit the config file with your settings
 2. Register the node with P0 backend
-3. Start the systemd service yourself`,
+3. Start the systemd service yourself
+
+SECURITY NOTE: By default, this command prevents running as root for security reasons.
+Use --allow-root flag only when necessary (e.g., in containers or restricted environments).`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCompleteInstall(*verbose, *configPath, serviceName, serviceUser)
+			return runCompleteInstall(*verbose, *configPath, serviceName, serviceUser, allowRoot)
 		},
 	}
 
 	cmd.Flags().StringVar(&serviceName, "service-name", "p0-ssh-agent", "Name for the systemd service")
 	cmd.Flags().StringVar(&serviceUser, "user", "p0-agent", "User to run the service as")
+	cmd.Flags().BoolVar(&allowRoot, "allow-root", false, "Allow installation to run as root (WARNING: Not recommended for security reasons)")
 
 	return cmd
 }
 
-func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUser string) error {
+func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUser string, allowRoot bool) error {
 	logger := logrus.New()
 	if verbose {
 		logger.SetLevel(logrus.DebugLevel)
@@ -64,7 +69,7 @@ func runCompleteInstall(verbose bool, configPath string, serviceName, serviceUse
 	}).Info("🚀 Starting complete P0 SSH Agent installation")
 
 	logger.Info("📦 Step 0: Bootstrap installation")
-	if err := runBootstrapSteps(logger); err != nil {
+	if err := runBootstrapSteps(logger, allowRoot); err != nil {
 		logger.WithError(err).Error("Failed to bootstrap")
 		return fmt.Errorf("failed to bootstrap: %w", err)
 	}
@@ -148,7 +153,7 @@ func detectExecutablePath() (string, error) {
 	return "", fmt.Errorf("p0-ssh-agent executable not found in common locations")
 }
 
-func runBootstrapSteps(logger *logrus.Logger) error {
+func runBootstrapSteps(logger *logrus.Logger, allowRoot bool) error {
 	const (
 		defaultBinaryName = "p0-ssh-agent"
 		defaultInstallDir = "/usr/local/bin"
@@ -156,8 +161,12 @@ func runBootstrapSteps(logger *logrus.Logger) error {
 		defaultConfigFile = "/etc/p0-ssh-agent/config.yaml"
 	)
 
-	if os.Geteuid() == 0 {
-		return fmt.Errorf("install command should not be run as root, please run as regular user with sudo privileges")
+	if os.Geteuid() == 0 && !allowRoot {
+		return fmt.Errorf("install command should not be run as root, please run as regular user with sudo privileges (or use --allow-root flag to bypass this check)")
+	}
+
+	if os.Geteuid() == 0 && allowRoot {
+		logger.Warn("⚠️  Running as root - this bypasses security restrictions and is not recommended")
 	}
 
 	currentExe, err := os.Executable()
