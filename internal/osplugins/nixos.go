@@ -68,57 +68,36 @@ func (p *NixOSPlugin) isSystemdHomedAvailable() bool {
 
 func (p *NixOSPlugin) createUserWithHomed(username, homeDir string, logger *logrus.Logger) error {
 	logger.WithField("user", username).Info("Creating user with systemd-homed")
-	
+
 	// Create user with homectl
 	cmd := exec.Command("sudo", "homectl", "create", username,
 		"--real-name", fmt.Sprintf("P0 Service User %s", username),
 		"--shell", "/bin/false",
 		"--home-dir", homeDir,
-		"--uid-range", "1000-1999", // System user range
+		"--storage=directory",
 	)
-	
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		logger.WithError(err).WithField("output", string(output)).Error("Failed to create user with homectl")
 		return fmt.Errorf("homectl create failed: %w", err)
 	}
-	
-	logger.WithField("user", username).Info("✅ Service user created successfully with systemd-homed")
+
+	// Activate the user to mount/prepare the home directory
+	logger.WithField("user", username).Info("Activating user home directory")
+	cmd = exec.Command("sudo", "homectl", "activate", username)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		logger.WithError(err).WithField("output", string(output)).Error("Failed to activate user home directory")
+		return fmt.Errorf("homectl activate failed: %w", err)
+	}
+
+	logger.WithField("user", username).Info("✅ Service user created and activated successfully with systemd-homed")
 	return nil
 }
 
 func (p *NixOSPlugin) provideSystemdHomedSetupInstructions(username, homeDir string, logger *logrus.Logger) error {
 	logger.WithField("user", username).Error("⚠️  systemd-homed is required but not enabled")
-	
-	setupInstructions := fmt.Sprintf(`
-# REQUIRED: Enable systemd-homed for P0 SSH Agent on NixOS
-# Add this to your /etc/nixos/configuration.nix:
-
-services.homed.enable = true;
-
-# Then rebuild your system:
-# sudo nixos-rebuild switch
-
-# After systemd-homed is enabled, P0 SSH Agent will automatically:
-# - Create JIT users dynamically with: homectl create <username>
-# - Manage SSH keys for temporary access
-# - Clean up users when sessions expire
-
-# The P0 SSH Agent requires systemd-homed for:
-# ✅ Just-In-Time user provisioning
-# ✅ Dynamic SSH key management  
-# ✅ Secure session cleanup
-# ✅ NixOS-compatible user management`)
-
-	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Println("🐧 NixOS SETUP REQUIRED - systemd-homed Missing")
-	fmt.Println(strings.Repeat("=", 80))
-	fmt.Println("P0 SSH Agent requires systemd-homed for dynamic user management.")
-	fmt.Println(setupInstructions)
-	fmt.Println("\n" + strings.Repeat("=", 80))
-	fmt.Println("After enabling systemd-homed, run the P0 install command again.")
-	fmt.Println(strings.Repeat("=", 80))
-
 	return fmt.Errorf("systemd-homed is not enabled - add 'services.homed.enable = true;' to /etc/nixos/configuration.nix and run 'sudo nixos-rebuild switch'")
 }
 
@@ -250,7 +229,7 @@ func (p *NixOSPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logg
 
 	// Check if systemd-homed is available
 	if !p.isSystemdHomedAvailable() {
-		return fmt.Errorf("systemd-homed is not available - enable it in configuration.nix with: services.homed.enable = true")
+		return fmt.Errorf("systemd-homed service is not enabled - required for NixOS user management")
 	}
 
 	// Create user with homectl
@@ -259,11 +238,20 @@ func (p *NixOSPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logg
 		"--shell", "/bin/bash",
 		"--home-dir", fmt.Sprintf("/home/%s", username),
 	)
-	
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		logger.WithError(err).WithField("output", string(output)).Error("Failed to create JIT user")
 		return fmt.Errorf("failed to create JIT user: %w", err)
+	}
+
+	// Activate the user to mount/prepare the home directory
+	logger.WithField("user", username).Info("Activating JIT user home directory")
+	cmd = exec.Command("sudo", "homectl", "activate", username)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		logger.WithError(err).WithField("output", string(output)).Error("Failed to activate JIT user home directory")
+		return fmt.Errorf("homectl activate failed: %w", err)
 	}
 
 	// Add SSH key if provided
@@ -274,7 +262,7 @@ func (p *NixOSPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logg
 		}
 	}
 
-	logger.WithField("user", username).Info("✅ JIT user created successfully")
+	logger.WithField("user", username).Info("✅ JIT user created and activated successfully")
 	return nil
 }
 
@@ -290,7 +278,7 @@ func (p *NixOSPlugin) RemoveJITUser(username string, logger *logrus.Logger) erro
 
 	// Check if systemd-homed is available
 	if !p.isSystemdHomedAvailable() {
-		return fmt.Errorf("systemd-homed is not available - cannot remove user")
+		return fmt.Errorf("systemd-homed service is not enabled - required for NixOS user management")
 	}
 
 	// Remove user with homectl
@@ -363,19 +351,19 @@ func (p *NixOSPlugin) UninstallService(serviceName string, logger *logrus.Logger
 
 	// Note: No service file removal needed on NixOS - services are managed declaratively
 	logger.Info("ℹ️  NixOS services are managed declaratively - no service files to remove")
-	
+
 	return nil
 }
 
 func (p *NixOSPlugin) CleanupInstallation(serviceName string, logger *logrus.Logger) error {
 	logger.Info("Performing NixOS-specific cleanup")
-	
+
 	// Remove runtime directories that may have been created
 	dirs := []string{
-		"/etc/p0-ssh-agent", // Config directory
-		"/var/log/p0-ssh-agent", // Log directory  
+		"/etc/p0-ssh-agent",     // Config directory
+		"/var/log/p0-ssh-agent", // Log directory
 	}
-	
+
 	for _, dir := range dirs {
 		if _, err := os.Stat(dir); err == nil {
 			cmd := exec.Command("sudo", "rm", "-rf", dir)
@@ -386,7 +374,7 @@ func (p *NixOSPlugin) CleanupInstallation(serviceName string, logger *logrus.Log
 			}
 		}
 	}
-	
+
 	// Remove binary from install directories
 	installDirs := p.GetInstallDirectories()
 	for _, dir := range installDirs {
@@ -401,7 +389,7 @@ func (p *NixOSPlugin) CleanupInstallation(serviceName string, logger *logrus.Log
 			break // Only remove from the first directory where it's found
 		}
 	}
-	
+
 	// Provide NixOS-specific cleanup instructions
 	nixosInstructions := fmt.Sprintf(`
 # NixOS UNINSTALL INSTRUCTIONS
@@ -418,12 +406,12 @@ To completely remove P0 SSH Agent from your NixOS system:
 3. The service will be automatically removed from your system.
 
 Note: Runtime files and binaries have been cleaned up automatically.`, serviceName)
-	
+
 	fmt.Println("\n" + strings.Repeat("=", 70))
 	fmt.Println("🐧 NixOS UNINSTALL COMPLETE")
 	fmt.Println(strings.Repeat("=", 70))
 	fmt.Println(nixosInstructions)
 	fmt.Println("\n" + strings.Repeat("=", 70))
-	
+
 	return nil
 }

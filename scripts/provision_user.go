@@ -2,11 +2,11 @@ package scripts
 
 import (
 	"fmt"
-	"os/exec"
 	"os/user"
-	"strconv"
 
 	"github.com/sirupsen/logrus"
+
+	"p0-ssh-agent/internal/osplugins"
 )
 
 func ProvisionUser(req ProvisioningRequest, logger *logrus.Logger) ProvisioningResult {
@@ -25,7 +25,7 @@ func ProvisionUser(req ProvisioningRequest, logger *logrus.Logger) ProvisioningR
 
 	switch req.Action {
 	case "grant":
-		return ensureUserExists(req.UserName, logger)
+		return ensureUserExists(req, logger)
 	case "revoke":
 		return ProvisioningResult{
 			Success: true,
@@ -39,74 +39,40 @@ func ProvisionUser(req ProvisioningRequest, logger *logrus.Logger) ProvisioningR
 	}
 }
 
-func ensureUserExists(username string, logger *logrus.Logger) ProvisioningResult {
-	if _, err := user.Lookup(username); err == nil {
-		logger.WithField("username", username).Debug("User already exists")
+func ensureUserExists(req ProvisioningRequest, logger *logrus.Logger) ProvisioningResult {
+	if _, err := user.Lookup(req.UserName); err == nil {
+		logger.WithField("username", req.UserName).Debug("User already exists")
 		return ProvisioningResult{
 			Success: true,
 			Message: "User already exists",
 		}
 	}
 
-	newUID, err := findNextAvailableUID()
+	// Get the appropriate OS plugin
+	osPlugin, err := osplugins.GetPlugin(logger)
 	if err != nil {
 		return ProvisioningResult{
 			Success: false,
-			Error:   err.Error(),
+			Error:   fmt.Sprintf("failed to get OS plugin: %v", err),
 		}
 	}
 
 	logger.WithFields(logrus.Fields{
-		"username": username,
-		"uid":      newUID,
-	}).Info("Creating new user")
+		"username":  req.UserName,
+		"os_plugin": osPlugin.GetName(),
+	}).Info("Creating new JIT user")
 
-	if err := createUserWithUseradd(username, newUID, logger); err != nil {
-		if err := createUserWithAdduser(username, newUID, logger); err != nil {
-			return ProvisioningResult{
-				Success: false,
-				Error:   "failed to create user: neither useradd nor adduser succeeded",
-			}
+	// Use the OS plugin to create the JIT user
+	if err := osPlugin.CreateJITUser(req.UserName, req.PublicKey, logger); err != nil {
+		return ProvisioningResult{
+			Success: false,
+			Error:   fmt.Sprintf("failed to create user with %s plugin: %v", osPlugin.GetName(), err),
 		}
 	}
 
 	return ProvisioningResult{
 		Success: true,
-		Message: fmt.Sprintf("User %s created successfully with UID %d", username, newUID),
+		Message: fmt.Sprintf("User %s created successfully with %s plugin", req.UserName, osPlugin.GetName()),
 	}
 }
 
-func createUserWithUseradd(username string, uid int, logger *logrus.Logger) error {
-	if !commandExists("groupadd") || !commandExists("useradd") {
-		return fmt.Errorf("groupadd or useradd not found")
-	}
-
-	logger.Debug("Creating user with useradd/groupadd")
-
-	cmd := exec.Command("sudo", "groupadd", "-g", strconv.Itoa(uid), username)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create group: %v", err)
-	}
-
-	cmd = exec.Command("sudo", "useradd", "-m", "-u", strconv.Itoa(uid), "-g", strconv.Itoa(uid), username, "-s", "/bin/bash")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create user: %v", err)
-	}
-
-	return nil
-}
-
-func createUserWithAdduser(username string, uid int, logger *logrus.Logger) error {
-	if !commandExists("adduser") {
-		return fmt.Errorf("adduser not found")
-	}
-
-	logger.Debug("Creating user with adduser")
-
-	cmd := exec.Command("sudo", "adduser", "-u", strconv.Itoa(uid), "--gecos", username, "--disabled-password", "--shell", "/bin/bash", username)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create user with adduser: %v", err)
-	}
-
-	return nil
-}

@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/sirupsen/logrus"
@@ -199,23 +201,27 @@ func (p *LinuxPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logg
 	logger.WithField("user", username).Info("Creating JIT user")
 
 	// Check if user already exists
-	cmd := exec.Command("id", username)
-	if cmd.Run() == nil {
+	if _, err := user.Lookup(username); err == nil {
 		logger.WithField("user", username).Info("✅ JIT user already exists")
 		return nil
 	}
 
-	// Create user with useradd
-	cmd = exec.Command("sudo", "useradd",
-		"--create-home",
-		"--shell", "/bin/bash",
-		"--comment", fmt.Sprintf("P0 JIT User %s", username),
-		username)
-	
-	output, err := cmd.CombinedOutput()
+	// Find next available UID
+	newUID, err := p.findNextAvailableUID()
 	if err != nil {
-		logger.WithError(err).WithField("output", string(output)).Error("Failed to create JIT user")
-		return fmt.Errorf("failed to create JIT user: %w", err)
+		return fmt.Errorf("failed to find available UID: %w", err)
+	}
+
+	logger.WithFields(logrus.Fields{
+		"username": username,
+		"uid":      newUID,
+	}).Info("Creating new JIT user with UID")
+
+	// Try useradd first, then fallback to adduser
+	if err := p.createUserWithUseradd(username, newUID, logger); err != nil {
+		if err := p.createUserWithAdduser(username, newUID, logger); err != nil {
+			return fmt.Errorf("failed to create user: neither useradd nor adduser succeeded: %w", err)
+		}
 	}
 
 	// Add SSH key if provided
@@ -290,6 +296,58 @@ func (p *LinuxPlugin) addSSHKeyToUser(username, sshKey string, logger *logrus.Lo
 	}
 
 	logger.WithField("user", username).Info("✅ SSH key added successfully")
+	return nil
+}
+
+func (p *LinuxPlugin) findNextAvailableUID() (int, error) {
+	const minUID, maxUID = 65536, 90000
+
+	for uid := minUID; uid <= maxUID; uid++ {
+		if _, err := user.LookupId(strconv.Itoa(uid)); err != nil {
+			return uid, nil
+		}
+	}
+
+	return 0, fmt.Errorf("no available UID found in range %d-%d", minUID, maxUID)
+}
+
+func (p *LinuxPlugin) commandExists(command string) bool {
+	_, err := exec.LookPath(command)
+	return err == nil
+}
+
+func (p *LinuxPlugin) createUserWithUseradd(username string, uid int, logger *logrus.Logger) error {
+	if !p.commandExists("groupadd") || !p.commandExists("useradd") {
+		return fmt.Errorf("groupadd or useradd not found")
+	}
+
+	logger.Debug("Creating user with useradd/groupadd")
+
+	cmd := exec.Command("sudo", "groupadd", "-g", strconv.Itoa(uid), username)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create group: %v", err)
+	}
+
+	cmd = exec.Command("sudo", "useradd", "-m", "-u", strconv.Itoa(uid), "-g", strconv.Itoa(uid), username, "-s", "/bin/bash")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create user: %v", err)
+	}
+
+	return nil
+}
+
+func (p *LinuxPlugin) createUserWithAdduser(username string, uid int, logger *logrus.Logger) error {
+	if !p.commandExists("adduser") {
+		return fmt.Errorf("adduser not found")
+	}
+
+	logger.Debug("Creating user with adduser")
+
+	cmd := exec.Command("sudo", "adduser", "-u", strconv.Itoa(uid), "--gecos", username, "--disabled-password", "--shell", "/bin/bash", username)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create user with adduser: %v", err)
+	}
+
 	return nil
 }
 
