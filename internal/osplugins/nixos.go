@@ -26,8 +26,8 @@ func (p *NixOSPlugin) GetName() string {
 
 func (p *NixOSPlugin) GetInstallDirectories() []string {
 	return []string{
-		"/usr/bin",        // NixOS doesn't have /usr/local/bin
-		"/opt/p0/bin",     // Custom location fallback
+		"/usr/bin",    // NixOS doesn't have /usr/local/bin
+		"/opt/p0/bin", // Custom location fallback
 	}
 }
 
@@ -43,25 +43,92 @@ func (p *NixOSPlugin) GetConfigDirectory() string {
 func (p *NixOSPlugin) CreateUser(username, homeDir string, logger *logrus.Logger) error {
 	logger.WithField("user", username).Info("Creating service user")
 
+	// Check if user already exists
 	cmd := exec.Command("id", username)
 	if cmd.Run() == nil {
 		logger.WithField("user", username).Info("✅ Service user already exists")
 		return nil
 	}
 
-	cmd = exec.Command("sudo", "useradd",
-		"--system",
-		"--shell", "/bin/false",
-		"--home", homeDir,
-		"--create-home",
-		username)
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create user %s: %w", username, err)
+	// Try systemd-homed first for dynamic user creation
+	logger.WithField("user", username).Info("Attempting to create user with systemd-homed")
+	
+	// Check if systemd-homed is available
+	if p.isSystemdHomedAvailable() {
+		err := p.createUserWithHomed(username, homeDir, logger)
+		if err == nil {
+			return nil
+		}
+		logger.WithError(err).Warn("systemd-homed user creation failed, falling back to configuration instructions")
 	}
 
-	logger.WithField("user", username).Info("✅ Service user created successfully")
+	// Fall back to configuration instructions
+	return p.provideUserConfigInstructions(username, homeDir, logger)
+}
+
+func (p *NixOSPlugin) isSystemdHomedAvailable() bool {
+	// Check if systemd-homed service is running
+	cmd := exec.Command("systemctl", "is-active", "systemd-homed")
+	return cmd.Run() == nil
+}
+
+func (p *NixOSPlugin) createUserWithHomed(username, homeDir string, logger *logrus.Logger) error {
+	logger.WithField("user", username).Info("Creating user with systemd-homed")
+	
+	// Create user with homectl
+	cmd := exec.Command("sudo", "homectl", "create", username,
+		"--real-name", fmt.Sprintf("P0 Service User %s", username),
+		"--shell", "/bin/false",
+		"--home-dir", homeDir,
+		"--uid-range", "1000-1999", // System user range
+	)
+	
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.WithError(err).WithField("output", string(output)).Error("Failed to create user with homectl")
+		return fmt.Errorf("homectl create failed: %w", err)
+	}
+	
+	logger.WithField("user", username).Info("✅ Service user created successfully with systemd-homed")
 	return nil
+}
+
+func (p *NixOSPlugin) provideUserConfigInstructions(username, homeDir string, logger *logrus.Logger) error {
+	logger.WithField("user", username).Warn("⚠️  User creation requires configuration")
+	
+	userConfig := fmt.Sprintf(`
+# OPTION 1: Enable systemd-homed for dynamic user management
+# Add this to your /etc/nixos/configuration.nix:
+
+services.homed.enable = true;
+
+# Then rebuild: sudo nixos-rebuild switch
+# After that, create users dynamically with:
+# sudo homectl create %s --real-name "P0 Service User" --shell /bin/false
+
+# OPTION 2: Declare user statically in configuration.nix
+# Add this to your /etc/nixos/configuration.nix:
+
+users.users.%s = {
+  isSystemUser = true;
+  shell = "/bin/false";
+  home = "%s";
+  createHome = true;
+  group = "%s";
+};
+
+users.groups.%s = {};`, username, username, homeDir, username, username)
+
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	fmt.Println("🐧 NixOS USER CREATION OPTIONS")
+	fmt.Println(strings.Repeat("=", 70))
+	fmt.Println("Choose one of the following approaches:")
+	fmt.Println(userConfig)
+	fmt.Println("\nRecommended: Use systemd-homed for JIT user provisioning")
+	fmt.Println("Then run: sudo nixos-rebuild switch")
+	fmt.Println(strings.Repeat("=", 70))
+
+	return fmt.Errorf("user %s requires configuration - see options above", username)
 }
 
 func (p *NixOSPlugin) SetupDirectories(dirs []string, owner string, logger *logrus.Logger) error {
@@ -144,11 +211,6 @@ systemd.services.%s = {
     ProtectKernelModules = true;
     ProtectControlGroups = true;
   };
-  
-  environment = {
-    PATH = "/usr/local/bin:/usr/bin:/bin:/sbin:/usr/sbin";
-    HOME = "/root";
-  };
 };`, serviceName, workingDir, executablePath, configPath, serviceName)
 
 	// Write the config to a temporary file for user reference
@@ -178,5 +240,113 @@ systemd.services.%s = {
 	fmt.Println("\n" + strings.Repeat("=", 70))
 
 	logger.Info("✅ NixOS configuration generated successfully")
+	return nil
+}
+
+func (p *NixOSPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logger) error {
+	logger.WithField("user", username).Info("Creating JIT user")
+
+	// Check if user already exists
+	cmd := exec.Command("id", username)
+	if cmd.Run() == nil {
+		logger.WithField("user", username).Info("✅ JIT user already exists")
+		return nil
+	}
+
+	// Check if systemd-homed is available
+	if !p.isSystemdHomedAvailable() {
+		return fmt.Errorf("systemd-homed is not available - enable it in configuration.nix with: services.homed.enable = true")
+	}
+
+	// Create user with homectl
+	cmd = exec.Command("sudo", "homectl", "create", username,
+		"--real-name", fmt.Sprintf("P0 JIT User %s", username),
+		"--shell", "/bin/bash",
+		"--home-dir", fmt.Sprintf("/home/%s", username),
+	)
+	
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.WithError(err).WithField("output", string(output)).Error("Failed to create JIT user")
+		return fmt.Errorf("failed to create JIT user: %w", err)
+	}
+
+	// Add SSH key if provided
+	if sshKey != "" {
+		err = p.addSSHKeyToUser(username, sshKey, logger)
+		if err != nil {
+			logger.WithError(err).Warn("Failed to add SSH key, but user was created")
+		}
+	}
+
+	logger.WithField("user", username).Info("✅ JIT user created successfully")
+	return nil
+}
+
+func (p *NixOSPlugin) RemoveJITUser(username string, logger *logrus.Logger) error {
+	logger.WithField("user", username).Info("Removing JIT user")
+
+	// Check if user exists
+	cmd := exec.Command("id", username)
+	if cmd.Run() != nil {
+		logger.WithField("user", username).Info("User does not exist, nothing to remove")
+		return nil
+	}
+
+	// Check if systemd-homed is available
+	if !p.isSystemdHomedAvailable() {
+		return fmt.Errorf("systemd-homed is not available - cannot remove user")
+	}
+
+	// Remove user with homectl
+	cmd = exec.Command("sudo", "homectl", "remove", username)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.WithError(err).WithField("output", string(output)).Error("Failed to remove JIT user")
+		return fmt.Errorf("failed to remove JIT user: %w", err)
+	}
+
+	logger.WithField("user", username).Info("✅ JIT user removed successfully")
+	return nil
+}
+
+func (p *NixOSPlugin) addSSHKeyToUser(username, sshKey string, logger *logrus.Logger) error {
+	logger.WithField("user", username).Info("Adding SSH key to user")
+
+	// Create authorized_keys file
+	homeDir := fmt.Sprintf("/home/%s", username)
+	sshDir := fmt.Sprintf("%s/.ssh", homeDir)
+	authorizedKeysFile := fmt.Sprintf("%s/authorized_keys", sshDir)
+
+	// Create .ssh directory
+	cmd := exec.Command("sudo", "mkdir", "-p", sshDir)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create .ssh directory: %w", err)
+	}
+
+	// Write SSH key
+	cmd = exec.Command("sudo", "tee", authorizedKeysFile)
+	cmd.Stdin = strings.NewReader(sshKey + "\n")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to write SSH key: %w", err)
+	}
+
+	// Set proper permissions
+	cmd = exec.Command("sudo", "chown", "-R", fmt.Sprintf("%s:%s", username, username), sshDir)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set SSH directory ownership: %w", err)
+	}
+
+	cmd = exec.Command("sudo", "chmod", "700", sshDir)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set SSH directory permissions: %w", err)
+	}
+
+	cmd = exec.Command("sudo", "chmod", "600", authorizedKeysFile)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set authorized_keys permissions: %w", err)
+	}
+
+	logger.WithField("user", username).Info("✅ SSH key added successfully")
 	return nil
 }

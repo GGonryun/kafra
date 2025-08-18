@@ -26,6 +26,12 @@ type OSPlugin interface {
 	
 	// GetSystemInfo returns OS-specific system information
 	GetSystemInfo() map[string]string
+	
+	// CreateJITUser creates a user dynamically for JIT access (used by P0 scripts)
+	CreateJITUser(username, sshKey string, logger *logrus.Logger) error
+	
+	// RemoveJITUser removes a dynamically created user (cleanup)
+	RemoveJITUser(username string, logger *logrus.Logger) error
 }
 
 // InstallConfig contains parameters needed for installation

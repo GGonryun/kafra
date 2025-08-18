@@ -194,3 +194,101 @@ func (p *LinuxPlugin) writeServiceFile(filePath, content string, logger *logrus.
 	logger.WithField("path", filePath).Info("✅ Service file written successfully")
 	return nil
 }
+
+func (p *LinuxPlugin) CreateJITUser(username, sshKey string, logger *logrus.Logger) error {
+	logger.WithField("user", username).Info("Creating JIT user")
+
+	// Check if user already exists
+	cmd := exec.Command("id", username)
+	if cmd.Run() == nil {
+		logger.WithField("user", username).Info("✅ JIT user already exists")
+		return nil
+	}
+
+	// Create user with useradd
+	cmd = exec.Command("sudo", "useradd",
+		"--create-home",
+		"--shell", "/bin/bash",
+		"--comment", fmt.Sprintf("P0 JIT User %s", username),
+		username)
+	
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.WithError(err).WithField("output", string(output)).Error("Failed to create JIT user")
+		return fmt.Errorf("failed to create JIT user: %w", err)
+	}
+
+	// Add SSH key if provided
+	if sshKey != "" {
+		err = p.addSSHKeyToUser(username, sshKey, logger)
+		if err != nil {
+			logger.WithError(err).Warn("Failed to add SSH key, but user was created")
+		}
+	}
+
+	logger.WithField("user", username).Info("✅ JIT user created successfully")
+	return nil
+}
+
+func (p *LinuxPlugin) RemoveJITUser(username string, logger *logrus.Logger) error {
+	logger.WithField("user", username).Info("Removing JIT user")
+
+	// Check if user exists
+	cmd := exec.Command("id", username)
+	if cmd.Run() != nil {
+		logger.WithField("user", username).Info("User does not exist, nothing to remove")
+		return nil
+	}
+
+	// Remove user with userdel
+	cmd = exec.Command("sudo", "userdel", "--remove", username)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.WithError(err).WithField("output", string(output)).Error("Failed to remove JIT user")
+		return fmt.Errorf("failed to remove JIT user: %w", err)
+	}
+
+	logger.WithField("user", username).Info("✅ JIT user removed successfully")
+	return nil
+}
+
+func (p *LinuxPlugin) addSSHKeyToUser(username, sshKey string, logger *logrus.Logger) error {
+	logger.WithField("user", username).Info("Adding SSH key to user")
+
+	// Create authorized_keys file
+	homeDir := fmt.Sprintf("/home/%s", username)
+	sshDir := fmt.Sprintf("%s/.ssh", homeDir)
+	authorizedKeysFile := fmt.Sprintf("%s/authorized_keys", sshDir)
+
+	// Create .ssh directory
+	cmd := exec.Command("sudo", "mkdir", "-p", sshDir)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create .ssh directory: %w", err)
+	}
+
+	// Write SSH key
+	cmd = exec.Command("sudo", "tee", authorizedKeysFile)
+	cmd.Stdin = strings.NewReader(sshKey + "\n")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to write SSH key: %w", err)
+	}
+
+	// Set proper permissions
+	cmd = exec.Command("sudo", "chown", "-R", fmt.Sprintf("%s:%s", username, username), sshDir)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set SSH directory ownership: %w", err)
+	}
+
+	cmd = exec.Command("sudo", "chmod", "700", sshDir)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set SSH directory permissions: %w", err)
+	}
+
+	cmd = exec.Command("sudo", "chmod", "600", authorizedKeysFile)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to set authorized_keys permissions: %w", err)
+	}
+
+	logger.WithField("user", username).Info("✅ SSH key added successfully")
+	return nil
+}
