@@ -6,9 +6,10 @@ DIST_DIR=dist
 CMD_DIR=./cmd
 VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME=$(shell date -u '+%Y-%m-%d_%H:%M:%S')
+GIT_COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 # Go build flags
-LDFLAGS=-ldflags="-s -w -X main.version=$(VERSION) -X main.buildTime=$(BUILD_TIME)"
+LDFLAGS=-ldflags="-s -w -X p0-ssh-agent/cmd/version.version=$(VERSION) -X p0-ssh-agent/cmd/version.buildTime=$(BUILD_TIME) -X p0-ssh-agent/cmd/version.gitCommit=$(GIT_COMMIT)"
 BUILD_FLAGS=-v $(LDFLAGS)
 
 # Cross-compilation targets

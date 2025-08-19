@@ -13,6 +13,7 @@ import (
 	"p0-ssh-agent/cmd/start"
 	"p0-ssh-agent/cmd/status"
 	"p0-ssh-agent/cmd/uninstall"
+	"p0-ssh-agent/cmd/version"
 )
 
 var (
@@ -40,6 +41,7 @@ func init() {
 	rootCmd.AddCommand(uninstall.NewUninstallCommand(&verbose, &configPath))
 	rootCmd.AddCommand(status.NewStatusCommand(&verbose, &configPath))
 	rootCmd.AddCommand(command.NewCommandCommand(&verbose, &configPath))
+	rootCmd.AddCommand(version.NewVersionCommand())
 }
 
 func main() {
