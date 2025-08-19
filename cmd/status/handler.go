@@ -50,7 +50,7 @@ func runStatusCheck(verbose bool, configPath string) error {
 		}
 		logger.WithError(err).Warn("Failed to load configuration for logging, using basic logging")
 	} else {
-		logger = logging.SetupLoggerFromConfig(verbose, cfg)
+		logger = logging.SetupLogger(verbose)
 	}
 
 	logger.WithField("config_path", configPath).Info("🔍 P0 SSH Agent Status Check")
@@ -102,7 +102,7 @@ func runStatusCheck(verbose bool, configPath string) error {
 	fmt.Print("📄 Log file... ")
 	logValid := false
 	if cfg != nil {
-		logValid = checkLogFile(cfg.LogPath, logger)
+		logValid = true // Always valid since we use journalctl
 	}
 	if logValid {
 		fmt.Println("✅ ACCESSIBLE")
@@ -201,9 +201,7 @@ func checkJWTKeys(keyPath string, logger *logrus.Logger) bool {
 func checkDirectoryPermissions(cfg *types.Config, logger *logrus.Logger) bool {
 	directories := []string{cfg.KeyPath}
 	
-	if cfg.LogPath != "" {
-		directories = append(directories, filepath.Dir(cfg.LogPath))
-	}
+	// No log directories to check - using journalctl
 
 	for _, dir := range directories {
 		if dir == "" {

@@ -108,55 +108,53 @@ func (p *NixOSPlugin) GetSystemInfo() map[string]string {
 }
 
 func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, executablePath, configPath string, logger *logrus.Logger) error {
-	// Install the NixOS module
-	moduleSourcePath := "/tmp/p0-ssh-agent.nix"
-	moduleDestPath := "/etc/nixos/modules/p0-ssh-agent.nix"
-	
-	// Create the NixOS module content
-	moduleContent := p.generateNixOSModule()
-	if err := os.WriteFile(moduleSourcePath, []byte(moduleContent), 0644); err != nil {
-		logger.WithError(err).Warn("Failed to write NixOS module to temporary file")
-	} else {
-		logger.WithField("module_file", moduleSourcePath).Info("📝 NixOS module written to temporary file")
-	}
-	
-	// Try to install the module if possible
-	if err := p.installNixOSModule(moduleSourcePath, moduleDestPath, logger); err != nil {
-		logger.WithError(err).Warn("Could not automatically install NixOS module")
-	}
+	// Install in system modules path at jit/p0-ssh-agent.nix
+	moduleDestPath := "/run/current-system/sw/share/nixos/modules/jit/p0-ssh-agent.nix"
 
-	// Generate example configuration
-	exampleConfig := p.generateExampleConfig(executablePath, configPath)
+	// Create the NixOS module content with actual paths from installation
+	moduleContent := p.generateNixOSModule(executablePath, configPath)
+	
+	// Install the module to system modules path
+	if err := p.installNixOSModuleDirectly(moduleContent, moduleDestPath, logger); err != nil {
+		logger.WithError(err).Error("Failed to install NixOS module")
+		return err
+	}
 
 	// Display instructions
 	fmt.Println("\n" + strings.Repeat("=", 70))
-	fmt.Println("🐧 NixOS DETECTED - Module Installation")
+	fmt.Println("🐧 NixOS DETECTED")
 	fmt.Println(strings.Repeat("=", 70))
-	fmt.Println("\nNixOS module has been prepared for easy configuration.")
-	fmt.Println("Please follow these steps to complete the service setup:")
-	
-	fmt.Println("\n📦 Step 1: Install the NixOS Module")
-	fmt.Printf("   sudo mkdir -p /etc/nixos/modules\n")
-	fmt.Printf("   sudo cp %s %s\n", moduleSourcePath, moduleDestPath)
-	
-	fmt.Println("\n📝 Step 2: Import and Configure in /etc/nixos/configuration.nix")
-	fmt.Println("   Add the following to your configuration.nix:")
-	fmt.Println(exampleConfig)
-	
-	fmt.Println("\n🔄 Step 3: Rebuild System")
+
+	fmt.Println("\n✅ P0 SSH Agent NixOS module installed!")
+	fmt.Printf("📄 Module installed at: %s\n", moduleDestPath)
+
+	fmt.Println("\n📝 Add these lines to your /etc/nixos/configuration.nix:")
+	fmt.Println("\n{")
+	fmt.Println("  imports = [")
+	fmt.Println("    # ... your existing imports ...")
+	fmt.Println("    \"${modulesPath}/jit/p0-ssh-agent.nix\"")
+	fmt.Println("  ];")
+	fmt.Println("")
+	fmt.Println("  services.p0-ssh-agent.enable = true;")
+	fmt.Println("}")
+
+	fmt.Println("\n🔄 Then rebuild your system:")
 	fmt.Println("   sudo nixos-rebuild switch")
-	
-	fmt.Println("\n✅ Step 4: Service Management")
+
+	fmt.Println("\n🔧 After rebuild, manage the service with:")
 	fmt.Printf("   Status:  sudo systemctl status %s\n", serviceName)
 	fmt.Printf("   Logs:    sudo journalctl -u %s -f\n", serviceName)
+
+	fmt.Println("\n💡 Configure P0 SSH Agent by editing:")
+	fmt.Printf("   %s\n", configPath)
 	fmt.Println("\n" + strings.Repeat("=", 70))
 
-	logger.Info("✅ NixOS module and configuration generated successfully")
+	logger.Info("✅ NixOS module installed successfully")
 	return nil
 }
 
-func (p *NixOSPlugin) generateNixOSModule() string {
-	return `{ config, lib, pkgs, ... }:
+func (p *NixOSPlugin) generateNixOSModule(executablePath, configPath string) string {
+	return fmt.Sprintf(`{ config, lib, ... }:
 
 with lib;
 
@@ -165,73 +163,15 @@ let
 in {
   options.services.p0-ssh-agent = {
     enable = mkEnableOption "P0 SSH Agent - Secure SSH access management";
-    
-    config = mkOption {
-      type = types.attrs;
-      default = {};
-      description = "Configuration for P0 SSH Agent as Nix attributes";
-      example = {
-        version = "1.0";
-        orgId = "your-org";
-        hostId = "your-host-id";
-        environment = "production";
-        tunnelHost = "wss://your-tunnel.example.com";
-        keyPath = "/etc/p0-ssh-agent/keys";
-        logPath = "/var/log/p0-ssh-agent/service.log";
-        labels = [ "type=production" ];
-        heartbeatIntervalSeconds = 60;
-      };
-    };
-    
-    configFile = mkOption {
-      type = types.path;
-      description = "Path to the configuration file";
-      default = "/etc/p0-ssh-agent/config.yaml";
-    };
-    
-    binaryPath = mkOption {
-      type = types.path;
-      description = "Path to the p0-ssh-agent binary";
-      default = "/usr/bin/p0-ssh-agent";
-    };
   };
   
   config = mkIf cfg.enable {
-    # Enable systemd-homed for JIT user management
-    services.homed.enable = mkDefault true;
-    
-    # Create configuration directory
-    system.activationScripts.p0-ssh-agent-setup = ''
-      mkdir -p /etc/p0-ssh-agent
-      mkdir -p /var/log/p0-ssh-agent
-      chown root:root /etc/p0-ssh-agent /var/log/p0-ssh-agent
-      chmod 755 /etc/p0-ssh-agent /var/log/p0-ssh-agent
-    '';
-    
-    # Generate YAML config file from Nix configuration
-    environment.etc."p0-ssh-agent/config.yaml" = mkIf (cfg.config != {}) {
-      text = ''
-        version: "${cfg.config.version or "1.0"}"
-        orgId: "${cfg.config.orgId or ""}"
-        hostId: "${cfg.config.hostId or ""}"
-        ${lib.optionalString (cfg.config ? hostname) ''hostname: "${cfg.config.hostname}"''}
-        environment: "${cfg.config.environment or "production"}"
-        tunnelHost: "${cfg.config.tunnelHost or ""}"
-        keyPath: "${cfg.config.keyPath or "/etc/p0-ssh-agent/keys"}"
-        logPath: "${cfg.config.logPath or "/var/log/p0-ssh-agent/service.log"}"
-        ${lib.optionalString (cfg.config ? labels) ''labels: ${builtins.toJSON cfg.config.labels}''}
-        heartbeatIntervalSeconds: ${toString (cfg.config.heartbeatIntervalSeconds or 60)}
-        ${lib.optionalString (cfg.config ? dryRun) ''dryRun: ${if cfg.config.dryRun then "true" else "false"}''}
-      '';
-      mode = "0644";
-    };
-    
     # Main systemd service
     systemd.services.p0-ssh-agent = {
       enable = true;
       description = "P0 SSH Agent - Secure SSH access management";
       documentation = [ "https://docs.p0.com/" ];
-      after = [ "network-online.target" "systemd-homed.service" ];
+      after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
       
@@ -243,7 +183,7 @@ in {
         User = "root";
         Group = "root";
         WorkingDirectory = "/etc/p0-ssh-agent";
-        ExecStart = "${cfg.binaryPath} start --config ${cfg.configFile}";
+        ExecStart = "%s start --config %s";
         ExecReload = "/bin/kill -HUP $MAINPID";
         Restart = "always";
         RestartSec = "5s";
@@ -267,64 +207,39 @@ in {
         HOME = "/root";
       };
     };
-    
-    # Add p0-ssh-agent command to system PATH if binary exists
-    environment.systemPackages = mkIf (builtins.pathExists cfg.binaryPath) [
-      (pkgs.runCommand "p0-ssh-agent-wrapper" {} ''
-        mkdir -p $out/bin
-        ln -s ${cfg.binaryPath} $out/bin/p0-ssh-agent
-      '')
-    ];
-  };
-}`
-}
-
-func (p *NixOSPlugin) generateExampleConfig(executablePath, configPath string) string {
-	return fmt.Sprintf(`
-{
-  imports = [
-    ./modules/p0-ssh-agent.nix
-  ];
-
-  services.p0-ssh-agent = {
-    enable = true;
-    binaryPath = "%s";
-    configFile = "%s";
-    config = {
-      version = "1.0";
-      orgId = "your-org-id";
-      hostId = "your-host-id";
-      environment = "production";
-      tunnelHost = "wss://your-tunnel-host.example.com";
-      keyPath = "/etc/p0-ssh-agent/keys";
-      logPath = "/var/log/p0-ssh-agent/service.log";
-      labels = [ "type=production" ];
-      heartbeatIntervalSeconds = 60;
-    };
   };
 }`, executablePath, configPath)
 }
 
-func (p *NixOSPlugin) installNixOSModule(sourcePath, destPath string, logger *logrus.Logger) error {
-	// Create modules directory
+func (p *NixOSPlugin) installNixOSModuleDirectly(moduleContent, destPath string, logger *logrus.Logger) error {
+	// Create a temporary file with the module content
+	tempPath := "/tmp/p0-ssh-agent-module.nix"
+	if err := os.WriteFile(tempPath, []byte(moduleContent), 0644); err != nil {
+		return fmt.Errorf("failed to create temporary module file: %w", err)
+	}
+
+	// Create destination directory if needed
 	moduleDir := filepath.Dir(destPath)
 	cmd := exec.Command("sudo", "mkdir", "-p", moduleDir)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to create modules directory: %w", err)
 	}
-	
-	// Copy module file
-	cmd = exec.Command("sudo", "cp", sourcePath, destPath)
+
+	// Copy module file to final location
+	cmd = exec.Command("sudo", "cp", tempPath, destPath)
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to copy module file: %w", err)
+		return fmt.Errorf("failed to install module file: %w", err)
 	}
-	
-	// Set permissions
+
+	// Set proper permissions
 	cmd = exec.Command("sudo", "chmod", "644", destPath)
 	if err := cmd.Run(); err != nil {
 		logger.WithError(err).Warn("Failed to set module file permissions")
 	}
-	
+
+	// Clean up temporary file
+	os.Remove(tempPath)
+
 	logger.WithField("module_path", destPath).Info("✅ NixOS module installed successfully")
 	return nil
 }

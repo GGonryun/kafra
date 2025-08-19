@@ -62,7 +62,7 @@ func runJWT(verbose bool, configPath, keyPath, clientID, orgID, hostID, tunnelID
 		}
 		logger.WithError(err).Warn("Failed to load configuration, using command line flags")
 	} else {
-		logger = logging.SetupLoggerFromConfig(verbose, cfg)
+		logger = logging.SetupLogger(verbose)
 	}
 
 	// Determine key path

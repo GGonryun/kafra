@@ -55,7 +55,7 @@ func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath 
 		}
 		logger.WithError(err).Warn("Failed to load configuration, using basic logging")
 	} else {
-		logger = logging.SetupLoggerFromConfig(verbose, cfg)
+		logger = logging.SetupLogger(verbose)
 	}
 	
 	finalKeyPath = keyPath

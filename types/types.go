@@ -30,7 +30,6 @@ type Config struct {
 	HostID                   string   `json:"hostId" yaml:"hostId"`
 	Hostname                 string   `json:"hostname" yaml:"hostname"`
 	KeyPath                  string   `json:"keyPath" yaml:"keyPath"`
-	LogPath                  string   `json:"logPath" yaml:"logPath"`
 	TunnelHost               string   `json:"tunnelHost" yaml:"tunnelHost"`
 	Labels                   []string `json:"labels" yaml:"labels"`
 	Environment              string   `json:"environment" yaml:"environment"`
@@ -42,9 +41,6 @@ func (c *Config) GetClientID() string {
 	return c.OrgID + ":" + c.HostID + ":ssh"
 }
 
-func (c *Config) GetLogPath() string {
-	return c.LogPath
-}
 
 func (c *Config) GetHeartbeatInterval() time.Duration {
 	return time.Duration(c.HeartbeatIntervalSeconds) * time.Second

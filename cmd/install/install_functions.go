@@ -16,7 +16,6 @@ import (
 func createDirectories(cfg *types.Config, osPlugin osplugins.OSPlugin, logger *logrus.Logger) error {
 	directories := []string{
 		cfg.KeyPath,
-		filepath.Dir(cfg.LogPath),
 	}
 
 	// Use the OS plugin to setup directories (with root ownership)
@@ -46,44 +45,6 @@ func generateJWTKeys(keyPath, executablePath string, logger *logrus.Logger) erro
 	return nil
 }
 
-func createLogFile(logPath string, logger *logrus.Logger) error {
-	if logPath == "" {
-		logger.Info("No log path specified, using stdout/stderr")
-		return nil
-	}
-
-	if stat, err := os.Stat(logPath); err == nil && stat.IsDir() {
-		logPath = filepath.Join(logPath, "service.log")
-	} else if filepath.Ext(logPath) == "" {
-		logPath = filepath.Join(logPath, "service.log")
-	}
-
-	logger.WithField("log_path", logPath).Info("Creating log file")
-
-	logDir := filepath.Dir(logPath)
-	cmd := exec.Command("sudo", "mkdir", "-p", logDir)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create log directory %s: %w", logDir, err)
-	}
-
-	cmd = exec.Command("sudo", "touch", logPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create log file %s: %w", logPath, err)
-	}
-
-	cmd = exec.Command("sudo", "chown", "root:root", logPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to set ownership for log file: %w", err)
-	}
-
-	cmd = exec.Command("sudo", "chmod", "644", logPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to set permissions for log file: %w", err)
-	}
-
-	logger.WithField("log_path", logPath).Info("✅ Log file created successfully")
-	return nil
-}
 
 func displayInstallationSuccess(serviceName, configPath, executablePath string) {
 	fmt.Println("\n" + strings.Repeat("=", 60))

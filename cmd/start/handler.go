@@ -20,7 +20,6 @@ func NewStartCommand(verbose *bool, configPath *string) *cobra.Command {
 		hostID          string
 		tunnelHost      string
 		keyPath         string
-		logPath         string
 		labels          []string
 		environment     string
 		tunnelTimeoutMs int
@@ -36,7 +35,7 @@ and logs incoming requests for monitoring and debugging purposes.`,
 			return runStart(
 				*verbose, *configPath,
 				orgID, hostID, tunnelHost,
-				keyPath, logPath, labels, environment,
+				keyPath, labels, environment,
 				tunnelTimeoutMs, dryRun,
 			)
 		},
@@ -46,7 +45,6 @@ and logs incoming requests for monitoring and debugging purposes.`,
 	cmd.Flags().StringVar(&hostID, "host-id", "", "Host identifier (required)")
 	cmd.Flags().StringVar(&tunnelHost, "tunnel-host", "", "WebSocket URL (e.g., ws://localhost:8079 or wss://example.ngrok.app)")
 	cmd.Flags().StringVar(&keyPath, "key-path", "", "Path to store JWT key files")
-	cmd.Flags().StringVar(&logPath, "log-path", "", "Path to store log files (for daemon mode)")
 	cmd.Flags().StringSliceVar(&labels, "labels", []string{}, "Machine labels for registration (can be used multiple times)")
 	cmd.Flags().StringVar(&environment, "environment", "", "Environment ID for registration")
 	cmd.Flags().IntVar(&tunnelTimeoutMs, "tunnel-timeout", 0, "Tunnel timeout in milliseconds")
@@ -58,7 +56,7 @@ and logs incoming requests for monitoring and debugging purposes.`,
 func runStart(
 	verbose bool, configPath string,
 	orgID, hostID, tunnelHost string,
-	keyPath, logPath string, labels []string, environment string,
+	keyPath string, labels []string, environment string,
 	tunnelTimeoutMs int, dryRun bool,
 ) error {
 	flagOverrides := map[string]interface{}{
@@ -66,13 +64,12 @@ func runStart(
 		"hostId":          hostID,
 		"tunnelHost":      tunnelHost,
 		"keyPath":         keyPath,
-		"logPath":         logPath,
 		"labels":          labels,
 		"environment":     environment,
 		"tunnelTimeoutMs": tunnelTimeoutMs,
 		"dryRun":          dryRun,
 	}
-	
+
 	cfg, err := config.LoadWithOverrides(configPath, flagOverrides)
 	if err != nil {
 		logger := logrus.New()
@@ -83,8 +80,7 @@ func runStart(
 		return err
 	}
 
-	logger := logging.SetupLoggerFromConfig(verbose, cfg)
-
+	logger := logging.SetupLogger(verbose)
 
 	client, err := client.New(cfg, logger)
 	if err != nil {
@@ -116,16 +112,15 @@ func runStart(
 	}()
 
 	logger.WithFields(logrus.Fields{
-		"version":         cfg.Version,
-		"orgId":           cfg.OrgID,
-		"hostId":          cfg.HostID,
-		"clientId":        cfg.GetClientID(),
-		"tunnelHost":      cfg.TunnelHost,
-		"keyPath":         cfg.KeyPath,
-		"logPath":         cfg.LogPath,
-		"labels":          cfg.Labels,
-		"environment":     cfg.Environment,
-		"dryRun":          cfg.DryRun,
+		"version":     cfg.Version,
+		"orgId":       cfg.OrgID,
+		"hostId":      cfg.HostID,
+		"clientId":    cfg.GetClientID(),
+		"tunnelHost":  cfg.TunnelHost,
+		"keyPath":     cfg.KeyPath,
+		"labels":      cfg.Labels,
+		"environment": cfg.Environment,
+		"dryRun":      cfg.DryRun,
 	}).Info("Starting P0 SSH Agent")
 
 	if err := client.Run(); err != nil {

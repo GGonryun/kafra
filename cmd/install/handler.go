@@ -110,13 +110,9 @@ func runCompleteInstall(verbose bool, configPath string, serviceName string, all
 		return fmt.Errorf("failed to generate JWT keys: %w", err)
 	}
 
-	logger.Info("📄 Step 5: Creating log file")
-	if err := createLogFile(cfg.LogPath, logger); err != nil {
-		logger.WithError(err).Error("Failed to create log file")
-		return fmt.Errorf("failed to create log file: %w", err)
-	}
+	// Step 5: Log management handled by systemd/journalctl - no log file creation needed
 
-	logger.Info("⚙️  Step 6: Creating systemd service")
+	logger.Info("⚙️  Step 5: Creating systemd service")
 	if err := osPlugin.CreateSystemdService(serviceName, executablePath, configPath, logger); err != nil {
 		logger.WithError(err).Error("Failed to create systemd service")
 		return fmt.Errorf("failed to create systemd service: %w", err)
@@ -289,7 +285,7 @@ tunnelHost: "wss://p0.example.com/websocket"  # Replace with your P0 backend URL
 
 # File paths
 keyPath: "/etc/p0-ssh-agent/keys"    # JWT key storage directory
-logPath: "/var/log/p0-ssh-agent/service.log"     # Log file path
+# Logs managed by systemd/journalctl automatically
 
 # Optional: Machine labels for identification
 labels:

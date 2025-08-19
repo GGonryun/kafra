@@ -81,9 +81,9 @@ Create a configuration file `config.yaml`:
 version: "1.0"
 orgId: "my-company" # Replace with your organization ID
 hostId: "hostname-goes-here" # Replace with unique host identifier
-tunnelHost: "wss://p0.example.com/websocket" # Replace with your P0 backend URL
+hostname: "custom-hostname" # Optional: override system hostname
+tunnelHost: "wss://api.p0.app" # P0 backend URL
 keyPath: "/etc/p0-ssh-agent/keys" # JWT key storage directory
-logPath: "/var/log/p0-ssh-agent" # Log file directory
 labels:
   - "environment=production" # Machine labels for identification
   - "team=infrastructure"
@@ -155,7 +155,6 @@ Start the WebSocket proxy agent that connects to P0 backend.
 | `--host-id`        | Host identifier (required)                | -       |
 | `--tunnel-host`    | WebSocket URL (e.g., ws://localhost:8079) | -       |
 | `--key-path`       | Path to store JWT key files               | -       |
-| `--log-path`       | Path to store log files (for daemon mode) | -       |
 | `--labels`         | Machine labels for registration           | -       |
 | `--environment`    | Environment ID for registration           | -       |
 | `--tunnel-timeout` | Tunnel timeout in milliseconds            | -       |
@@ -201,6 +200,7 @@ sudo p0-ssh-agent install
 - Creates directories with proper permissions
 - Generates JWT keys automatically
 - Creates systemd service file (not started)
+- **NixOS**: Creates NixOS module at `/etc/nixos/p0-ssh-agent.nix`
 - Provides instructions for configuration and registration
 
 **After installation, you must:**
@@ -209,6 +209,39 @@ sudo p0-ssh-agent install
 3. Start the service after approval
 
 **Perfect for production on-premises deployments.**
+
+#### NixOS Installation
+
+For NixOS systems, the install command provides special handling:
+
+```bash
+sudo ./p0-ssh-agent install
+```
+
+**NixOS-specific setup:**
+- Creates NixOS module in system modules path
+- Module contains systemd service definition with correct paths
+- Uses standard `modulesPath` import syntax
+
+**After installation, add to your `/etc/nixos/configuration.nix`:**
+
+```nix
+{
+  imports = [
+    # ... your existing imports ...
+    "${modulesPath}/jit/p0-ssh-agent.nix"
+  ];
+
+  services.p0-ssh-agent.enable = true;
+}
+```
+
+Then rebuild your system:
+```bash
+sudo nixos-rebuild switch
+```
+
+**Configuration**: Edit `/etc/p0-ssh-agent/config.yaml` (same as other platforms)
 
 ### `uninstall` - Completely Remove Installation
 
@@ -583,11 +616,11 @@ The configuration file uses YAML format with the following structure:
 version: "1.0"
 orgId: "organization-name" # Your organization identifier
 hostId: "machine-hostname" # Unique host identifier
-tunnelHost: "wss://p0.example.com" # WebSocket URL (ws:// or wss://)
+tunnelHost: "wss://api.p0.app" # WebSocket URL (ws:// or wss://)
 
 # Optional fields
+hostname: "custom-hostname" # Override system hostname (optional)
 keyPath: "/path/to/keys" # JWT key storage directory
-logPath: "/path/to/logs" # Log file directory (empty = stdout)
 environment: "production" # Environment identifier
 heartbeatIntervalSeconds: 60 # Heartbeat interval in seconds (default: 60)
 dryRun: false # Enable dry-run mode globally
