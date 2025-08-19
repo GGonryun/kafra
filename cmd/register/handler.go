@@ -55,37 +55,6 @@ func runRegister(verbose bool, configPath string) error {
 
 
 func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest string, configPath string, logger *logrus.Logger) {
-	fmt.Println("\n🎯 Machine Registration Request Generated")
-	fmt.Println("==========================================")
-
-	fmt.Printf("📋 System Information:\n")
-	fmt.Printf("   Host ID: %s\n", request.HostID)
-	fmt.Printf("   Client ID: %s\n", request.ClientID)
-	fmt.Printf("   Hostname: %s\n", request.Hostname)
-	if request.PublicIP != "" {
-		fmt.Printf("   Public IP: %s\n", request.PublicIP)
-	} else {
-		fmt.Printf("   Public IP: not available\n")
-	}
-	fmt.Printf("   Fingerprint: %s\n", request.Fingerprint)
-	fmt.Printf("   Timestamp: %s\n", request.Timestamp)
-
-	fmt.Printf("\n🏢 Configuration:\n")
-	fmt.Printf("   Org ID: %s\n", request.OrgID)
-	fmt.Printf("   Environment ID: %s\n", request.EnvironmentID)
-
-	if len(request.Labels) > 0 {
-		fmt.Printf("   Labels:\n")
-		for _, label := range request.Labels {
-			fmt.Printf("     %s\n", label)
-		}
-	}
-
-	fmt.Printf("\n🔑 Keys:\n")
-	fmt.Printf("   Fingerprint Public Key: %s...\n", request.FingerprintPublicKey[:32])
-	fmt.Printf("   JWK Key Type: %s\n", request.JWKPublicKey["kty"])
-	fmt.Printf("   JWK Algorithm: %s\n", request.JWKPublicKey["alg"])
-
 	fmt.Println("\n📦 Base64 Encoded Registration Request:")
 	fmt.Println("==========================================")
 
@@ -99,15 +68,10 @@ func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest 
 	}
 
 	fmt.Println("\n💡 Next Steps:")
-	fmt.Println("1. Copy the base64 encoded registration request above")
-	fmt.Println("2. Submit it to your P0 backend for machine registration")
-	fmt.Println("3. Once registration is APPROVED, start the systemd service:")
+	fmt.Println("1. Submit the base64 encoded registration request to P0")
+	fmt.Println("2. Enable and start the systemd service:")
 	fmt.Printf("   \033[1msudo systemctl enable p0-ssh-agent\033[0m\n")
 	fmt.Printf("   \033[1msudo systemctl start p0-ssh-agent\033[0m\n")
-	fmt.Println("")
-	fmt.Println("4. Verify the service is running:")
-	fmt.Printf("   \033[1msudo systemctl status p0-ssh-agent\033[0m\n")
-	fmt.Printf("   \033[1msudo journalctl -u p0-ssh-agent -f\033[0m\n")
 
 	fmt.Println("\n🔧 Service Management Commands:")
 	fmt.Println("   Status:  sudo systemctl status p0-ssh-agent")
@@ -115,7 +79,4 @@ func displayRegistrationInfo(request *types.RegistrationRequest, encodedRequest 
 	fmt.Println("   Start:   sudo systemctl start p0-ssh-agent")
 	fmt.Println("   Restart: sudo systemctl restart p0-ssh-agent")
 	fmt.Println("   Logs:    sudo journalctl -u p0-ssh-agent -f")
-
-	fmt.Println("\n⚠️  IMPORTANT: Keep your JWT keys secure!")
-	fmt.Printf("\n💡 Pro Tip: Use 'p0-ssh-agent status' to validate the installation\n")
 }
