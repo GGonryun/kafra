@@ -321,6 +321,17 @@ func (p *NixOSPlugin) CleanupInstallation(serviceName string, logger *logrus.Log
 		}
 	}
 
+	// Remove the NixOS module file we generated
+	moduleFilePath := "/etc/nixos/modules/jit/p0-ssh-agent.nix"
+	if _, err := os.Stat(moduleFilePath); err == nil {
+		cmd := exec.Command("sudo", "rm", "-f", moduleFilePath)
+		if err := cmd.Run(); err != nil {
+			logger.WithError(err).WithField("path", moduleFilePath).Warn("Failed to remove NixOS module file")
+		} else {
+			logger.WithField("path", moduleFilePath).Info("NixOS module file removed")
+		}
+	}
+
 	// Provide NixOS-specific cleanup instructions
 	nixosInstructions := fmt.Sprintf(`
 # NixOS UNINSTALL INSTRUCTIONS
@@ -328,15 +339,15 @@ func (p *NixOSPlugin) CleanupInstallation(serviceName string, logger *logrus.Log
 To completely remove P0 SSH Agent from your NixOS system:
 
 1. Remove the service configuration from /etc/nixos/configuration.nix:
-   - Delete the 'systemd.services.%s' block
-   - Remove 'services.homed.enable = true;' if no longer needed
+   - Remove the import line: ./modules/jit/p0-ssh-agent.nix
+   - Remove 'services.p0-ssh-agent.enable = true;'
 
 2. Rebuild your system:
    sudo nixos-rebuild switch
 
 3. The service will be automatically removed from your system.
 
-Note: Runtime files and binaries have been cleaned up automatically.`, serviceName)
+Note: Runtime files, binaries, and the NixOS module file have been cleaned up automatically.`, serviceName)
 
 	fmt.Println("\n" + strings.Repeat("=", 70))
 	fmt.Println("🐧 NixOS UNINSTALL COMPLETE")
