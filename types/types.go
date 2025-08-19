@@ -28,6 +28,7 @@ type Config struct {
 	Version                  string   `json:"version" yaml:"version"`
 	OrgID                    string   `json:"orgId" yaml:"orgId"`
 	HostID                   string   `json:"hostId" yaml:"hostId"`
+	Hostname                 string   `json:"hostname" yaml:"hostname"`
 	KeyPath                  string   `json:"keyPath" yaml:"keyPath"`
 	LogPath                  string   `json:"logPath" yaml:"logPath"`
 	TunnelHost               string   `json:"tunnelHost" yaml:"tunnelHost"`

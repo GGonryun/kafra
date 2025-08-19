@@ -39,8 +39,14 @@ var (
 	}
 )
 
-func GetHostname(logger *logrus.Logger) string {
+func GetHostname(logger *logrus.Logger, hostnameOverride string) string {
 	logger.Debug("Starting hostname collection...")
+
+	if hostnameOverride != "" {
+		logger.WithField("hostname", hostnameOverride).Debug("Using hostname override from config")
+		logger.WithField("hostname", hostnameOverride).Info("🏠 Hostname source: config override")
+		return hostnameOverride
+	}
 
 	hostname, err := os.Hostname()
 	if err != nil {
@@ -326,7 +332,7 @@ func CreateRegistrationRequest(configPath string, logger *logrus.Logger) (*types
 		return nil, fmt.Errorf("failed to load configuration: %w", err)
 	}
 
-	hostname := GetHostname(logger)
+	hostname := GetHostname(logger, cfg.Hostname)
 	publicIP := GetPublicIP(logger)
 	fingerprint := GetMachineFingerprint(logger)
 	fingerprintPublicKey := GetMachinePublicKey(logger)
