@@ -67,10 +67,6 @@ func runKeygen(verbose bool, configPath, keyPath string, force bool, keygenPath 
 		finalKeyPath = cfg.KeyPath
 	}
 	
-	if finalKeyPath == "" {
-		finalKeyPath = "."
-	}
-	
 	logger.WithField("path", finalKeyPath).Info("P0 SSH Agent Key Generator")
 	
 	privateKeyPath := filepath.Join(finalKeyPath, jwt.PrivateKeyFile)

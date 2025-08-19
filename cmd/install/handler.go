@@ -281,7 +281,7 @@ orgId: "my-organization"           # Replace with your organization ID
 hostId: "hostname-goes-here"       # Replace with unique host identifier
 
 # Required: P0 backend connection
-tunnelHost: "wss://p0.example.com/websocket"  # Replace with your P0 backend URL
+tunnelHost: "wss://api.p0.app"  # Replace with your P0 backend URL
 
 # File paths
 keyPath: "/etc/p0-ssh-agent/keys"    # JWT key storage directory

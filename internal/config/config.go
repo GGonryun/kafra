@@ -84,7 +84,7 @@ func Load() (*types.Config, error) {
 func setDefaults(v *viper.Viper) {
 	v.SetDefault("version", "1.0")
 	v.SetDefault("tunnelHost", "wss://api.p0.app")
-	v.SetDefault("keyPath", ".")
+	v.SetDefault("keyPath", "/etc/p0-ssh-agent/keys")
 	v.SetDefault("environment", "default")
 	v.SetDefault("heartbeatIntervalSeconds", 60)
 	v.SetDefault("labels", []string{})

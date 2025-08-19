@@ -70,9 +70,6 @@ func runJWT(verbose bool, configPath, keyPath, clientID, orgID, hostID, tunnelID
 	if finalKeyPath == "" && cfg != nil {
 		finalKeyPath = cfg.KeyPath
 	}
-	if finalKeyPath == "" {
-		finalKeyPath = "."
-	}
 
 	// Determine client ID
 	if clientID != "" {

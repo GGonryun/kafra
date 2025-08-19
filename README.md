@@ -348,7 +348,7 @@ version: "1.0"
 orgId: "my-company"
 hostId: "$(hostname)"
 tunnelHost: "wss://p0.example.com/websocket"
-keyPath: "~/.p0/keys"
+keyPath: "/etc/p0-ssh-agent/keys"
 environment: "production"
 tunnelTimeoutMs: 30000
 EOF
