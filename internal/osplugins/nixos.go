@@ -108,19 +108,15 @@ func (p *NixOSPlugin) GetSystemInfo() map[string]string {
 }
 
 func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, executablePath, configPath string, logger *logrus.Logger) error {
-	// Install in system modules path at jit/p0-ssh-agent.nix
-	moduleDestPath := "/run/current-system/sw/share/nixos/modules/jit/p0-ssh-agent.nix"
+	moduleDestPath := "/etc/nixos/modules/jit/p0-ssh-agent.nix"
 
-	// Create the NixOS module content with actual paths from installation
 	moduleContent := p.generateNixOSModule(executablePath, configPath)
-	
-	// Install the module to system modules path
+
 	if err := p.installNixOSModuleDirectly(moduleContent, moduleDestPath, logger); err != nil {
 		logger.WithError(err).Error("Failed to install NixOS module")
 		return err
 	}
 
-	// Display instructions
 	fmt.Println("\n" + strings.Repeat("=", 70))
 	fmt.Println("🐧 NixOS DETECTED")
 	fmt.Println(strings.Repeat("=", 70))
@@ -132,7 +128,7 @@ func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, executablePath, co
 	fmt.Println("\n{")
 	fmt.Println("  imports = [")
 	fmt.Println("    # ... your existing imports ...")
-	fmt.Println("    \"${modulesPath}/jit/p0-ssh-agent.nix\"")
+	fmt.Println("    ./modules/jit/p0-ssh-agent.nix")
 	fmt.Println("  ];")
 	fmt.Println("")
 	fmt.Println("  services.p0-ssh-agent.enable = true;")
@@ -218,17 +214,28 @@ func (p *NixOSPlugin) installNixOSModuleDirectly(moduleContent, destPath string,
 		return fmt.Errorf("failed to create temporary module file: %w", err)
 	}
 
-	// Create destination directory if needed
+	// Ensure all parent directories exist
 	moduleDir := filepath.Dir(destPath)
-	cmd := exec.Command("sudo", "mkdir", "-p", moduleDir)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create modules directory: %w", err)
+	logger.WithField("directory", moduleDir).Info("Creating NixOS modules directory")
+	
+	// Create the full directory path with verbose output for debugging
+	cmd := exec.Command("sudo", "mkdir", "-p", "-v", moduleDir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to create modules directory %s: %w\nOutput: %s", moduleDir, err, string(output))
+	} else {
+		logger.WithField("output", string(output)).Debug("Directory creation output")
+	}
+
+	// Verify the directory was created
+	if _, err := os.Stat(moduleDir); err != nil {
+		return fmt.Errorf("modules directory %s was not created successfully: %w", moduleDir, err)
 	}
 
 	// Copy module file to final location
+	logger.WithField("destination", destPath).Info("Installing NixOS module file")
 	cmd = exec.Command("sudo", "cp", tempPath, destPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to install module file: %w", err)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("failed to install module file: %w\nOutput: %s", err, string(output))
 	}
 
 	// Set proper permissions
@@ -339,3 +346,4 @@ Note: Runtime files and binaries have been cleaned up automatically.`, serviceNa
 
 	return nil
 }
+

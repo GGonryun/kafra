@@ -221,7 +221,7 @@ sudo ./p0-ssh-agent install
 **NixOS-specific setup:**
 - Creates NixOS module in system modules path
 - Module contains systemd service definition with correct paths
-- Uses standard `modulesPath` import syntax
+- Installs module to `/etc/nixos/modules/jit/` for easy import
 
 **After installation, add to your `/etc/nixos/configuration.nix`:**
 
@@ -229,7 +229,7 @@ sudo ./p0-ssh-agent install
 {
   imports = [
     # ... your existing imports ...
-    "${modulesPath}/jit/p0-ssh-agent.nix"
+    ./modules/jit/p0-ssh-agent.nix
   ];
 
   services.p0-ssh-agent.enable = true;
