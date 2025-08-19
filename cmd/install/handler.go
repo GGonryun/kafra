@@ -118,7 +118,7 @@ func runCompleteInstall(verbose bool, configPath string, serviceName string, all
 		return fmt.Errorf("failed to create systemd service: %w", err)
 	}
 
-	displayInstallationSuccess(serviceName, configPath, executablePath)
+	osPlugin.DisplayInstallationSuccess(serviceName, configPath, verbose)
 
 	return nil
 }

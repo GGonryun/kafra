@@ -38,6 +38,12 @@ type OSPlugin interface {
 
 	// CleanupInstallation performs OS-specific cleanup during uninstall
 	CleanupInstallation(serviceName string, logger *logrus.Logger) error
+
+	// DisplayInstallationSuccess shows OS-specific post-installation instructions
+	DisplayInstallationSuccess(serviceName, configPath string, verbose bool)
+
+	// DisplayUninstallationSuccess shows OS-specific post-uninstallation summary
+	DisplayUninstallationSuccess(hasErrors bool, errors []error)
 }
 
 // InstallConfig contains parameters needed for installation

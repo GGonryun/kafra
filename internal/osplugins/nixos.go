@@ -117,34 +117,6 @@ func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, executablePath, co
 		return err
 	}
 
-	fmt.Println("\n" + strings.Repeat("=", 70))
-	fmt.Println("🐧 NixOS DETECTED")
-	fmt.Println(strings.Repeat("=", 70))
-
-	fmt.Println("\n✅ P0 SSH Agent NixOS module installed!")
-	fmt.Printf("📄 Module installed at: %s\n", moduleDestPath)
-
-	fmt.Println("\n📝 Add these lines to your /etc/nixos/configuration.nix:")
-	fmt.Println("\n{")
-	fmt.Println("  imports = [")
-	fmt.Println("    # ... your existing imports ...")
-	fmt.Println("    ./modules/jit/p0-ssh-agent.nix")
-	fmt.Println("  ];")
-	fmt.Println("")
-	fmt.Println("  services.p0-ssh-agent.enable = true;")
-	fmt.Println("}")
-
-	fmt.Println("\n🔄 Then rebuild your system:")
-	fmt.Println("   sudo nixos-rebuild switch")
-
-	fmt.Println("\n🔧 After rebuild, manage the service with:")
-	fmt.Printf("   Status:  sudo systemctl status %s\n", serviceName)
-	fmt.Printf("   Logs:    sudo journalctl -u %s -f\n", serviceName)
-
-	fmt.Println("\n💡 Configure P0 SSH Agent by editing:")
-	fmt.Printf("   %s\n", configPath)
-	fmt.Println("\n" + strings.Repeat("=", 70))
-
 	logger.Info("✅ NixOS module installed successfully")
 	return nil
 }
@@ -332,12 +304,62 @@ func (p *NixOSPlugin) CleanupInstallation(serviceName string, logger *logrus.Log
 		}
 	}
 
-	// Provide NixOS-specific cleanup instructions
-	nixosInstructions := fmt.Sprintf(`
-# NixOS UNINSTALL INSTRUCTIONS
+	return nil
+}
 
-To completely remove P0 SSH Agent from your NixOS system:
+func (p *NixOSPlugin) DisplayInstallationSuccess(serviceName, configPath string, verbose bool) {
+	if verbose {
+		fmt.Println("\n📊 Installation Summary:")
+		fmt.Printf("   ✅ Service Name: %s\n", serviceName)
+		fmt.Printf("   ✅ Service User: root (for system operations)\n")
+		fmt.Printf("   ✅ Config Path: %s\n", configPath)
+		fmt.Printf("   ✅ NixOS Module: Created at /etc/nixos/modules/jit/p0-ssh-agent.nix\n")
+		fmt.Printf("   ✅ JWT Keys: Generated\n")
+	}
 
+	fmt.Println("\n🐧 NixOS Installation Complete!")
+	fmt.Println("\n1. Configure: vi /etc/p0-ssh-agent/config.yaml")
+	fmt.Println("2. Add these lines to your /etc/nixos/configuration.nix:")
+	fmt.Println("{")
+	fmt.Println("  imports = [")
+	fmt.Println("    # ... your existing imports ...")
+	fmt.Println("    ./modules/jit/p0-ssh-agent.nix")
+	fmt.Println("  ];")
+	fmt.Println("")
+	fmt.Println("  services.p0-ssh-agent.enable = true;")
+	fmt.Println("}")
+	fmt.Println("3. Rebuild: nixos-rebuild switch")
+	fmt.Println("4. Register: ./p0-ssh-agent register")
+}
+
+func (p *NixOSPlugin) DisplayUninstallationSuccess(hasErrors bool, errors []error) {
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	if hasErrors {
+		fmt.Println("⚠️ NixOS UNINSTALL COMPLETED WITH ERRORS")
+	} else {
+		fmt.Println("🐧 NixOS UNINSTALL COMPLETE")
+	}
+	fmt.Println(strings.Repeat("=", 70))
+
+	if hasErrors {
+		fmt.Println("\n❌ Errors encountered:")
+		for _, err := range errors {
+			fmt.Printf("   • %s\n", err.Error())
+		}
+		fmt.Println("\n📋 What was removed:")
+		fmt.Println("   🗑️ Runtime directories and files")
+		fmt.Println("   🗑️ System binaries")
+		fmt.Println("   🗑️ NixOS module file")
+		fmt.Println("\n💡 You may need to manually complete these steps:")
+	} else {
+		fmt.Println("\n📋 What was removed:")
+		fmt.Println("   🗑️ Runtime directories (/etc/p0-ssh-agent, /var/log/p0-ssh-agent)")
+		fmt.Println("   🗑️ System binaries from install directories")
+		fmt.Println("   🗑️ NixOS module file (/etc/nixos/modules/jit/p0-ssh-agent.nix)")
+		fmt.Println("\n📝 To complete the uninstallation:")
+	}
+
+	nixosInstructions := `
 1. Remove the service configuration from /etc/nixos/configuration.nix:
    - Remove the import line: ./modules/jit/p0-ssh-agent.nix
    - Remove 'services.p0-ssh-agent.enable = true;'
@@ -345,16 +367,15 @@ To completely remove P0 SSH Agent from your NixOS system:
 2. Rebuild your system:
    sudo nixos-rebuild switch
 
-3. The service will be automatically removed from your system.
+3. The service will be automatically removed from your system.`
 
-Note: Runtime files, binaries, and the NixOS module file have been cleaned up automatically.`, serviceName)
-
-	fmt.Println("\n" + strings.Repeat("=", 70))
-	fmt.Println("🐧 NixOS UNINSTALL COMPLETE")
-	fmt.Println(strings.Repeat("=", 70))
 	fmt.Println(nixosInstructions)
-	fmt.Println("\n" + strings.Repeat("=", 70))
 
-	return nil
+	if !hasErrors {
+		fmt.Println("\n🎉 Once you complete the steps above, P0 SSH Agent will be completely removed!")
+		fmt.Println("💡 You can safely reinstall anytime with: ./p0-ssh-agent install")
+	}
+
+	fmt.Println("\n" + strings.Repeat("=", 70))
 }
 

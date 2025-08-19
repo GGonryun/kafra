@@ -2,7 +2,6 @@ package uninstall
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -112,43 +111,12 @@ func runUninstall(verbose bool, configPath string, serviceName string, force boo
 		for _, err := range errors {
 			logger.WithError(err).Error("Error encountered")
 		}
-		displayUninstallSummary(true, errors)
+		osPlugin.DisplayUninstallationSuccess(true, errors)
 		return fmt.Errorf("uninstallation completed with %d errors", len(errors))
 	}
 
-	displayUninstallSummary(false, nil)
+	osPlugin.DisplayUninstallationSuccess(false, nil)
 	return nil
 }
 
 
-func displayUninstallSummary(hasErrors bool, errors []error) {
-	fmt.Println("\n" + strings.Repeat("=", 60))
-	if hasErrors {
-		fmt.Println("⚠️ P0 SSH Agent Uninstallation Completed with Errors")
-	} else {
-		fmt.Println("✅ P0 SSH Agent Uninstallation Completed Successfully")
-	}
-	fmt.Println(strings.Repeat("=", 60))
-
-	fmt.Println("\n📋 What was removed:")
-	fmt.Println("   🗑️ Systemd service (p0-ssh-agent)")
-	fmt.Println("   🗑️ Configuration directory (/etc/p0-ssh-agent/)")
-	fmt.Println("   🗑️ Log directory (/var/log/p0-ssh-agent/)")
-	fmt.Println("   🗑️ System binary (/usr/local/bin/p0-ssh-agent)")
-	fmt.Println("   🗑️ Service files and permissions")
-
-	if hasErrors {
-		fmt.Println("\n❌ Errors encountered:")
-		for _, err := range errors {
-			fmt.Printf("   • %s\n", err.Error())
-		}
-		fmt.Println("\n💡 You may need to manually clean up remaining files")
-		fmt.Println("💡 Check: sudo systemctl status p0-ssh-agent")
-		fmt.Println("💡 Check: ls -la /etc/p0-ssh-agent/")
-	} else {
-		fmt.Println("\n🎉 P0 SSH Agent has been completely removed from your system")
-		fmt.Println("💡 You can safely reinstall anytime with: ./p0-ssh-agent install")
-	}
-
-	fmt.Println("\n" + strings.Repeat("=", 60))
-}

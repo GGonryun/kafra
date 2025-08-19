@@ -272,3 +272,50 @@ func (p *LinuxPlugin) CleanupInstallation(serviceName string, logger *logrus.Log
 
 	return nil
 }
+
+func (p *LinuxPlugin) DisplayInstallationSuccess(serviceName, configPath string, verbose bool) {
+	if verbose {
+		fmt.Println("\n📊 Installation Summary:")
+		fmt.Printf("   ✅ Service Name: %s\n", serviceName)
+		fmt.Printf("   ✅ Service User: root (for system operations)\n")
+		fmt.Printf("   ✅ Config Path: %s\n", configPath)
+		fmt.Printf("   ✅ Systemd Service: Created (not started)\n")
+		fmt.Printf("   ✅ JWT Keys: Generated\n")
+	}
+
+	fmt.Println("\n🐧 Linux Installation Complete!")
+	fmt.Println("\n1. Configure: vi /etc/p0-ssh-agent/config.yaml")
+	fmt.Println("2. Register: ./p0-ssh-agent register")
+}
+
+func (p *LinuxPlugin) DisplayUninstallationSuccess(hasErrors bool, errors []error) {
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	if hasErrors {
+		fmt.Println("⚠️ Linux Uninstallation Completed with Errors")
+	} else {
+		fmt.Println("✅ Linux Uninstallation Completed Successfully")
+	}
+	fmt.Println(strings.Repeat("=", 60))
+
+	fmt.Println("\n📋 What was removed:")
+	fmt.Println("   🗑️ Systemd service (p0-ssh-agent)")
+	fmt.Println("   🗑️ Configuration directory (/etc/p0-ssh-agent/)")
+	fmt.Println("   🗑️ Log directory (/var/log/p0-ssh-agent/)")
+	fmt.Println("   🗑️ System binary from install directories")
+	fmt.Println("   🗑️ Service files and permissions")
+
+	if hasErrors {
+		fmt.Println("\n❌ Errors encountered:")
+		for _, err := range errors {
+			fmt.Printf("   • %s\n", err.Error())
+		}
+		fmt.Println("\n💡 You may need to manually clean up remaining files")
+		fmt.Println("💡 Check: sudo systemctl status p0-ssh-agent")
+		fmt.Println("💡 Check: ls -la /etc/p0-ssh-agent/")
+	} else {
+		fmt.Println("\n🎉 P0 SSH Agent has been completely removed from your system")
+		fmt.Println("💡 You can safely reinstall anytime with: ./p0-ssh-agent install")
+	}
+
+	fmt.Println("\n" + strings.Repeat("=", 60))
+}

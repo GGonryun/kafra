@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 
@@ -46,49 +45,5 @@ func generateJWTKeys(keyPath, executablePath string, logger *logrus.Logger) erro
 }
 
 
-func displayInstallationSuccess(serviceName, configPath, executablePath string) {
-	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Println("🎉 P0 SSH Agent Installation Complete!")
-	fmt.Println(strings.Repeat("=", 60))
-
-	fmt.Println("\n📊 Installation Summary:")
-	fmt.Printf("   ✅ Service Name: %s\n", serviceName)
-	fmt.Printf("   ✅ Service User: root (for system operations)\n")
-	fmt.Printf("   ✅ Config Path: %s\n", configPath)
-	fmt.Printf("   ✅ Systemd Service: Created (not started)\n")
-	fmt.Printf("   ✅ JWT Keys: Generated\n")
-
-	fmt.Println("\n⚠️  IMPORTANT: Complete These Steps Before Starting the Service")
-	fmt.Println(strings.Repeat("-", 60))
-
-	fmt.Println("\n📝 Step 1: Configure Your Settings")
-	fmt.Printf("   Edit the configuration file to update your organization settings:\n")
-	fmt.Printf("   \033[1msudo vi %s\033[0m\n", configPath)
-	fmt.Println("")
-	fmt.Println("   Required fields to update:")
-	fmt.Println("   • orgId: Your P0 organization ID")
-	fmt.Println("   • hostId: Unique identifier for this machine")
-	fmt.Println("   • tunnelHost: Your P0 backend WebSocket URL")
-
-	fmt.Println("\n🔑 Step 2: Register This Machine")
-	fmt.Printf("   Generate and submit your registration request:\n")
-	fmt.Printf("   \033[1m%s register --config %s\033[0m\n", "p0-ssh-agent", configPath)
-	fmt.Println("")
-	fmt.Println("   The registration command will:")
-	fmt.Println("   • Generate a machine-specific registration code")
-	fmt.Println("   • Display system information (hostname, fingerprint, keys)")
-	fmt.Println("   • Provide a base64-encoded request for your P0 backend")
-	fmt.Println("   • Give you instructions to start the service after approval")
-
-	fmt.Println("\n🔧 Service Management Commands:")
-	fmt.Printf("   Status:  sudo systemctl status %s\n", serviceName)
-	fmt.Printf("   Stop:    sudo systemctl stop %s\n", serviceName)
-	fmt.Printf("   Start:   sudo systemctl start %s\n", serviceName)
-	fmt.Printf("   Restart: sudo systemctl restart %s\n", serviceName)
-	fmt.Printf("   Logs:    sudo journalctl -u %s -f\n", serviceName)
-
-	fmt.Printf("\n💡 Pro Tip: Use 'p0-ssh-agent status' after starting to validate the installation\n")
-	fmt.Println("\n" + strings.Repeat("=", 60))
-}
 
 // Old NixOS-specific functions removed - now handled by NixOS plugin
