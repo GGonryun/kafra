@@ -120,7 +120,8 @@ Description=P0 SSH Agent - Secure SSH access management
 Documentation=https://docs.p0.com/
 After=network-online.target
 Wants=network-online.target
-StartLimitInterval=0
+StartLimitIntervalSec=60
+StartLimitBurst=10
 
 [Service]
 Type=simple
@@ -131,8 +132,6 @@ ExecStart=%s start --config %s
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=5s
-StartLimitIntervalSec=60s
-StartLimitBurst=10
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=%s

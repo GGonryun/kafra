@@ -19,6 +19,16 @@ import (
 	"p0-ssh-agent/types"
 )
 
+// AuthenticationError represents an authentication failure that should cause immediate exit
+type AuthenticationError struct {
+	StatusCode int
+	Message    string
+}
+
+func (e *AuthenticationError) Error() string {
+	return e.Message
+}
+
 const (
 	DefaultBackoffStart   = 1 * time.Second
 	DefaultBackoffMax     = 30 * time.Second
@@ -113,6 +123,15 @@ func (c *Client) connect() error {
 		c.shutdownMu.RUnlock()
 
 		if err := c.connectOnce(); err != nil {
+			// Check if this is an authentication error - exit immediately
+			if authErr, ok := err.(*AuthenticationError); ok {
+				c.logger.WithFields(logrus.Fields{
+					"status_code": authErr.StatusCode,
+					"error":       authErr.Message,
+				}).Error("💀 Authentication failed - exiting for systemd restart management")
+				return authErr
+			}
+
 			c.logger.WithError(err).Warn("Connection failed, retrying...")
 
 			select {
@@ -159,8 +178,21 @@ func (c *Client) connectOnce() error {
 			if resp.StatusCode == 401 {
 				c.logger.Error("🔐 Authentication failed - JWT token rejected by server")
 				c.logger.Error("💡 Check: 1) Client ID is registered 2) JWT key is correct 3) Token not expired")
+				c.logger.Error("💀 Exiting to let systemd handle restart rate limiting")
+				
+				return &AuthenticationError{
+					StatusCode: 401,
+					Message:    "authentication failed - JWT token rejected by server",
+				}
 			} else if resp.StatusCode == 403 {
 				c.logger.Error("🚫 Forbidden - Client ID may not be authorized")
+				c.logger.Error("💡 Check: Client ID is registered and authorized for this environment")
+				c.logger.Error("💀 Exiting to let systemd handle restart rate limiting")
+				
+				return &AuthenticationError{
+					StatusCode: 403,
+					Message:    "forbidden - client ID may not be authorized",
+				}
 			} else if resp.StatusCode == 404 {
 				c.logger.Error("🔍 Not Found - Check WebSocket endpoint path")
 			}
@@ -442,3 +474,4 @@ func (c *Client) IsConnectionHealthy() bool {
 
 	return healthy
 }
+
