@@ -126,6 +126,9 @@ systemd.services.%s = {
   wants = [ "network-online.target" ];
   wantedBy = [ "multi-user.target" ];
   
+  startLimitIntervalSec = 60;
+  startLimitBurst = 10;
+  
   serviceConfig = {
     Type = "simple";
     User = "root";
@@ -135,8 +138,6 @@ systemd.services.%s = {
     ExecReload = "/bin/kill -HUP $MAINPID";
     Restart = "always";
     RestartSec = "5s";
-    StartLimitIntervalSec = "60s";
-    StartLimitBurst = 10;
     StandardOutput = "journal";
     StandardError = "journal";
     SyslogIdentifier = "%s";
