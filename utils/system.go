@@ -216,7 +216,8 @@ func getSSHKeyFingerprint(keyPath string, logger *logrus.Logger) string {
 	parts := strings.Fields(outputStr)
 	for _, part := range parts {
 		if strings.HasPrefix(part, "SHA256:") {
-			fingerprint := strings.TrimPrefix(part, "SHA256:")
+			// Keep the SHA256: prefix to maintain fingerprint format
+			fingerprint := part
 			logger.WithFields(logrus.Fields{
 				"keyPath":     keyPath,
 				"fingerprint": fingerprint,
@@ -282,7 +283,7 @@ func getFallbackFingerprint(logger *logrus.Logger) string {
 
 	hash := sha256.Sum256([]byte(data))
 	hashString := fmt.Sprintf("%x", hash)[:32]
-	fingerprint := hashString
+	fingerprint := "SHA256:" + hashString
 
 	logger.WithFields(logrus.Fields{
 		"fingerprint": fingerprint,
