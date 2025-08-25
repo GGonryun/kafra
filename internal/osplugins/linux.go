@@ -264,6 +264,8 @@ func (p *LinuxPlugin) DisplayInstallationSuccess(serviceName, configPath string,
 	fmt.Println("\n🐧 Linux Installation Complete!")
 	fmt.Println("\nConfiguration:")
 	fmt.Printf("  • Edit config:       sudo vi %s\n", configPath)
+	fmt.Println("\nRestart SSH daemon:")
+	fmt.Println("  • Restart sshd:      sudo systemctl restart sshd")
 	fmt.Println("\nStart the service:")
 	fmt.Printf("  • Start service:     sudo systemctl start %s\n", serviceName)
 	fmt.Printf("  • Enable on boot:    sudo systemctl enable %s\n", serviceName)

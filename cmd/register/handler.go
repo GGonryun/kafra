@@ -320,23 +320,44 @@ func updateSSHDConfig(trustedCAPath string, logger *logrus.Logger) error {
 
 	lines := strings.Split(string(content), "\n")
 	trustedCALine := fmt.Sprintf("TrustedUserCAKeys %s", trustedCAPath)
-	found := false
+	hasConflicts := false
 
-	// Look for existing TrustedUserCAKeys line and replace it
+	// Track conflicting SSH directives that might interfere with P0
+	conflictingDirectives := []string{
+		"TrustedUserCAKeys",
+		"AuthorizedPrincipalsCommand",
+		"AuthorizedPrincipalsCommandUser", 
+		"AuthorizedKeysCommand",
+		"AuthorizedKeysCommandUser",
+	}
+
+	// Process each line to handle conflicts
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "TrustedUserCAKeys") {
-			lines[i] = trustedCALine
-			found = true
-			logger.Info("Replaced existing TrustedUserCAKeys in sshd_config")
-			break
+
+		// Check for conflicting directives and comment them out
+		for _, directive := range conflictingDirectives {
+			if strings.HasPrefix(trimmed, directive) && !strings.HasPrefix(trimmed, "#") {
+				lines[i] = "# " + line + " # Commented by P0 - potential conflict"
+				hasConflicts = true
+				logger.WithField("directive", directive).Warn("Commented out potentially conflicting SSH directive")
+				break
+			}
 		}
 	}
 
-	// If not found, add it
-	if !found {
-		lines = append(lines, trustedCALine)
-		logger.Info("Added TrustedUserCAKeys to sshd_config")
+	// Always add our TrustedUserCAKeys at the end
+	lines = append(lines, trustedCALine)
+	logger.Info("Added TrustedUserCAKeys to sshd_config")
+
+	// Add warning comment if conflicts were found
+	if hasConflicts {
+		lines = append(lines, "")
+		lines = append(lines, "# P0 SSH Agent - Conflicting directives were commented out above")
+		lines = append(lines, "# Review the commented lines and adjust as needed for your environment")
+		fmt.Printf("\n⚠️  WARNING: Found potentially conflicting SSH directives that were commented out.\n")
+		fmt.Printf("   Please review %s for commented lines marked with '# Commented by P0'.\n", sshdConfigPath)
+		fmt.Printf("   You may need to adjust these settings for your specific environment.\n")
 	}
 
 	// Create temporary file for new config
@@ -367,6 +388,12 @@ func updateSSHDConfig(trustedCAPath string, logger *logrus.Logger) error {
 	}
 
 	logger.Info("SSH daemon configuration updated and tested successfully")
+	
+	// Remind user to restart sshd
+	fmt.Printf("\n🔄 IMPORTANT: Restart SSH daemon to apply changes:\n")
+	fmt.Printf("   sudo systemctl restart sshd\n")
+	fmt.Printf("   # or: sudo service ssh restart\n")
+	
 	return nil
 }
 
