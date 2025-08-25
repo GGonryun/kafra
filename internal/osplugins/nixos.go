@@ -315,8 +315,6 @@ func (p *NixOSPlugin) DisplayInstallationSuccess(serviceName, configPath string,
 	fmt.Println("     services.p0-ssh-agent.enable = true;")
 	fmt.Println("   }")
 	fmt.Println("2. Rebuild and activate: sudo nixos-rebuild switch")
-	fmt.Println("\nRestart SSH daemon:")
-	fmt.Println("  • Restart sshd:      sudo systemctl restart sshd")
 	fmt.Println("\nManage the service:")
 	fmt.Printf("  • Edit config:       sudo vi %s\n", configPath)
 	fmt.Printf("  • Check status:      sudo systemctl status %s\n", serviceName)
