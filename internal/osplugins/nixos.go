@@ -93,19 +93,6 @@ func (p *NixOSPlugin) SetupDirectories(dirs []string, owner string, logger *logr
 	return nil
 }
 
-func (p *NixOSPlugin) GetSystemInfo() map[string]string {
-	info := make(map[string]string)
-	info["os"] = "nixos"
-	info["package_manager"] = "nix"
-	info["config_method"] = "declarative"
-
-	// Try to get NixOS version
-	if content, err := os.ReadFile("/etc/nixos/version"); err == nil {
-		info["version"] = strings.TrimSpace(string(content))
-	}
-
-	return info
-}
 
 func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, executablePath, configPath string, logger *logrus.Logger) error {
 	moduleDestPath := "/etc/nixos/modules/jit/p0-ssh-agent.nix"

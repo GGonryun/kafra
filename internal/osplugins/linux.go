@@ -90,27 +90,6 @@ func (p *LinuxPlugin) SetupDirectories(dirs []string, owner string, logger *logr
 	return nil
 }
 
-func (p *LinuxPlugin) GetSystemInfo() map[string]string {
-	info := make(map[string]string)
-	info["os"] = "linux"
-	info["package_manager"] = "unknown"
-	info["config_method"] = "traditional"
-
-	// Try to detect distribution
-	if content, err := os.ReadFile("/etc/os-release"); err == nil {
-		lines := strings.Split(string(content), "\n")
-		for _, line := range lines {
-			if strings.HasPrefix(line, "ID=") {
-				info["distribution"] = strings.Trim(strings.TrimPrefix(line, "ID="), "\"")
-			}
-			if strings.HasPrefix(line, "VERSION_ID=") {
-				info["version"] = strings.Trim(strings.TrimPrefix(line, "VERSION_ID="), "\"")
-			}
-		}
-	}
-
-	return info
-}
 
 func (p *LinuxPlugin) generateSystemdService(serviceName, executablePath, configPath string) string {
 	workingDir := filepath.Dir(configPath)

@@ -18,14 +18,8 @@ type OSPlugin interface {
 	// CreateSystemdService handles systemd service creation for this OS
 	CreateSystemdService(serviceName, executablePath, configPath string, logger *logrus.Logger) error
 
-	// GetConfigDirectory returns the default configuration directory
-	GetConfigDirectory() string
-
 	// SetupDirectories creates and configures necessary directories
 	SetupDirectories(dirs []string, owner string, logger *logrus.Logger) error
-
-	// GetSystemInfo returns OS-specific system information
-	GetSystemInfo() map[string]string
 
 	// CreateUser creates a user dynamically for JIT access (used by P0 scripts)
 	CreateUser(username string, logger *logrus.Logger) error

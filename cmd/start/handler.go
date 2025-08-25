@@ -119,7 +119,7 @@ func runStart(
 		"tunnelHost":  cfg.TunnelHost,
 		"keyPath":     cfg.KeyPath,
 		"labels":      cfg.Labels,
-		"environment": cfg.Environment,
+		"environment": cfg.EnvironmentId,
 		"dryRun":      cfg.DryRun,
 	}).Info("Starting P0 SSH Agent")
 

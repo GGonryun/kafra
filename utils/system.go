@@ -15,7 +15,6 @@ import (
 
 	"github.com/sirupsen/logrus"
 
-	"p0-ssh-agent/internal/config"
 	"p0-ssh-agent/internal/jwt"
 	"p0-ssh-agent/types"
 )
@@ -249,16 +248,16 @@ func getFallbackFingerprint(logger *logrus.Logger) string {
 
 	if err == nil {
 		logger.Debug("Collecting MAC addresses from network interfaces...")
-		for _, iface := range interfaces {
-			if len(iface.HardwareAddr) > 0 {
-				if iface.Flags&net.FlagLoopback == 0 && !strings.HasPrefix(iface.Name, "docker") {
-					macAddresses = append(macAddresses, iface.HardwareAddr.String())
+		for _, i := range interfaces {
+			if len(i.HardwareAddr) > 0 {
+				if i.Flags&net.FlagLoopback == 0 && !strings.HasPrefix(i.Name, "docker") {
+					macAddresses = append(macAddresses, i.HardwareAddr.String())
 					logger.WithFields(logrus.Fields{
-						"interface": iface.Name,
-						"mac":       iface.HardwareAddr.String(),
+						"interface": i.Name,
+						"mac":       i.HardwareAddr.String(),
 					}).Debug("Added MAC address for fingerprint")
 				} else {
-					skippedInterfaces = append(skippedInterfaces, iface.Name)
+					skippedInterfaces = append(skippedInterfaces, i.Name)
 				}
 			}
 		}
@@ -325,44 +324,54 @@ func GenerateRegistrationCode(hostname, publicIP, fingerprint, publicKey string)
 	return strings.Join(parts, ",")
 }
 
-func CreateRegistrationRequest(configPath string, logger *logrus.Logger) (*types.RegistrationRequest, error) {
+func CreateRegistrationRequest(keyPath string, logger *logrus.Logger) (*types.RegistrationRequest, error) {
+	return CreateRegistrationRequestWithOptions(keyPath, "", nil, logger)
+}
+
+func CreateRegistrationRequestWithOptions(keyPath, customHostname string, labels []string, logger *logrus.Logger) (*types.RegistrationRequest, error) {
 	logger.Debug("Creating registration request...")
 
-	cfg, err := config.LoadWithOverrides(configPath, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load configuration: %w", err)
+	var hostname string
+	if customHostname != "" {
+		hostname = customHostname
+		logger.WithField("hostname", hostname).Info("🏠 Hostname source: command line override")
+	} else {
+		hostname = GetHostname(logger, "")
 	}
 
-	hostname := GetHostname(logger, cfg.Hostname)
 	publicIP := GetPublicIP(logger)
 	fingerprint := GetMachineFingerprint(logger)
 	fingerprintPublicKey := GetMachinePublicKey(logger)
 
-	jwkPublicKey, err := GetJWKPublicKey(cfg.KeyPath, logger)
+	jwkPublicKey, err := GetJWKPublicKey(keyPath, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load JWK public key: %w", err)
 	}
 
 	request := &types.RegistrationRequest{
-		HostID:               fingerprint,
-		ClientID:             cfg.GetClientID(fingerprint),
 		Hostname:             hostname,
 		PublicIP:             publicIP,
 		Fingerprint:          fingerprint,
 		FingerprintPublicKey: fingerprintPublicKey,
 		JWKPublicKey:         jwkPublicKey,
-		EnvironmentID:        cfg.Environment,
-		OrgID:                cfg.OrgID,
-		Labels:               cfg.Labels,
+		Labels:               labels,
 		Timestamp:            time.Now().UTC().Format(time.RFC3339),
 	}
 
-	logger.Debug("Registration request created successfully")
+	logger.WithFields(logrus.Fields{
+		"hostname":    hostname,
+		"labels":      labels,
+		"labelsCount": len(labels),
+	}).Debug("Registration request created successfully")
 	return request, nil
 }
 
-func GenerateRegistrationRequestCode(configPath string, logger *logrus.Logger) (string, error) {
-	request, err := CreateRegistrationRequest(configPath, logger)
+func GenerateRegistrationRequestCode(keyPath string, logger *logrus.Logger) (string, error) {
+	return GenerateRegistrationRequestCodeWithOptions(keyPath, "", nil, logger)
+}
+
+func GenerateRegistrationRequestCodeWithOptions(keyPath, customHostname string, labels []string, logger *logrus.Logger) (string, error) {
+	request, err := CreateRegistrationRequestWithOptions(keyPath, customHostname, labels, logger)
 	if err != nil {
 		return "", err
 	}
