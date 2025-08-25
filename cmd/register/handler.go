@@ -155,7 +155,7 @@ func sendRegistrationRequest(auth, url, hostname string, labels []string, logger
 	requestBody := map[string]string{
 		"key": encodedRequest,
 	}
-	
+
 	requestJSON, err := json.Marshal(requestBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal request body: %w", err)
@@ -326,7 +326,7 @@ func updateSSHDConfig(trustedCAPath string, logger *logrus.Logger) error {
 	conflictingDirectives := []string{
 		"TrustedUserCAKeys",
 		"AuthorizedPrincipalsCommand",
-		"AuthorizedPrincipalsCommandUser", 
+		"AuthorizedPrincipalsCommandUser",
 		"AuthorizedKeysCommand",
 		"AuthorizedKeysCommandUser",
 	}
@@ -388,12 +388,12 @@ func updateSSHDConfig(trustedCAPath string, logger *logrus.Logger) error {
 	}
 
 	logger.Info("SSH daemon configuration updated and tested successfully")
-	
+
 	// Remind user to restart sshd
-	fmt.Printf("\n🔄 IMPORTANT: Restart SSH daemon to apply changes:\n")
+	fmt.Printf("\n🚨 IMPORTANT: Restart SSH daemon to apply changes:\n")
 	fmt.Printf("   sudo systemctl restart sshd\n")
 	fmt.Printf("   # or: sudo service ssh restart\n")
-	
+
 	return nil
 }
 
