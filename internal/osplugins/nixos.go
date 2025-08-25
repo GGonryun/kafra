@@ -93,7 +93,6 @@ func (p *NixOSPlugin) SetupDirectories(dirs []string, owner string, logger *logr
 	return nil
 }
 
-
 func (p *NixOSPlugin) generateNixOSServiceConfig(serviceName, executablePath, configPath string, logger *logrus.Logger) error {
 	moduleDestPath := "/etc/nixos/modules/jit/p0-ssh-agent.nix"
 
@@ -176,7 +175,7 @@ func (p *NixOSPlugin) installNixOSModuleDirectly(moduleContent, destPath string,
 	// Ensure all parent directories exist
 	moduleDir := filepath.Dir(destPath)
 	logger.WithField("directory", moduleDir).Info("Creating NixOS modules directory")
-	
+
 	// Create the full directory path with verbose output for debugging
 	cmd := exec.Command("sudo", "mkdir", "-p", "-v", moduleDir)
 	if output, err := cmd.CombinedOutput(); err != nil {
@@ -305,18 +304,24 @@ func (p *NixOSPlugin) DisplayInstallationSuccess(serviceName, configPath string,
 	}
 
 	fmt.Println("\n🐧 NixOS Installation Complete!")
-	fmt.Println("\n1. Configure: vi /etc/p0-ssh-agent/config.yaml")
-	fmt.Println("2. Add these lines to your /etc/nixos/configuration.nix:")
-	fmt.Println("{")
-	fmt.Println("  imports = [")
-	fmt.Println("    # ... your existing imports ...")
-	fmt.Println("    ./modules/jit/p0-ssh-agent.nix")
-	fmt.Println("  ];")
+	fmt.Println("\nNext steps to enable the service:")
+	fmt.Println("1. Add these lines to your /etc/nixos/configuration.nix:")
+	fmt.Println("   {")
+	fmt.Println("     imports = [")
+	fmt.Println("       # ... your existing imports ...")
+	fmt.Println("       ./modules/jit/p0-ssh-agent.nix")
+	fmt.Println("     ];")
 	fmt.Println("")
-	fmt.Println("  services.p0-ssh-agent.enable = true;")
-	fmt.Println("}")
-	fmt.Println("3. Rebuild: nixos-rebuild switch")
-	fmt.Println("4. Register: ./p0-ssh-agent register")
+	fmt.Println("     services.p0-ssh-agent.enable = true;")
+	fmt.Println("   }")
+	fmt.Println("2. Rebuild and activate: sudo nixos-rebuild switch")
+	fmt.Println("\nManage the service:")
+	fmt.Printf("  • Edit config:       sudo vi %s\n", configPath)
+	fmt.Printf("  • Check status:      sudo systemctl status %s\n", serviceName)
+	fmt.Printf("  • Restart service:   sudo systemctl restart %s\n", serviceName)
+	fmt.Printf("  • Stop service:      sudo systemctl stop %s\n", serviceName)
+	fmt.Printf("  • Live logs:         sudo journalctl -f -u %s\n", serviceName)
+	fmt.Printf("  • All logs:          sudo journalctl -u %s\n", serviceName)
 }
 
 func (p *NixOSPlugin) DisplayUninstallationSuccess(hasErrors bool, errors []error) {
@@ -360,9 +365,7 @@ func (p *NixOSPlugin) DisplayUninstallationSuccess(hasErrors bool, errors []erro
 
 	if !hasErrors {
 		fmt.Println("\n🎉 Once you complete the steps above, P0 SSH Agent will be completely removed!")
-		fmt.Println("💡 You can safely reinstall anytime with: ./p0-ssh-agent install")
 	}
 
 	fmt.Println("\n" + strings.Repeat("=", 70))
 }
-
