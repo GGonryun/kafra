@@ -32,7 +32,7 @@ type Config struct {
 	KeyPath                  string   `json:"keyPath" yaml:"keyPath"`
 	TunnelHost               string   `json:"tunnelHost" yaml:"tunnelHost"`
 	Labels                   []string `json:"labels" yaml:"labels"`
-	Environment              string   `json:"environment" yaml:"environment"`
+	EnvironmentId            string   `json:"environmentId" yaml:"environmentId"`
 	HeartbeatIntervalSeconds int      `json:"heartbeatIntervalSeconds" yaml:"heartbeatIntervalSeconds"`
 	DryRun                   bool     `json:"dryRun" yaml:"dryRun"`
 }
@@ -52,15 +52,12 @@ type SetClientIDRequest struct {
 }
 
 type RegistrationRequest struct {
-	HostID               string            `json:"hostId"`
-	ClientID             string            `json:"clientId"`
 	Hostname             string            `json:"hostname"`
 	PublicIP             string            `json:"publicIp"`
 	Fingerprint          string            `json:"fingerprint"`
 	FingerprintPublicKey string            `json:"fingerprintPublicKey"`
 	JWKPublicKey         map[string]string `json:"jwkPublicKey"`
-	EnvironmentID        string            `json:"environmentId"`
-	OrgID                string            `json:"orgId"`
 	Labels               []string          `json:"labels,omitempty"`
 	Timestamp            string            `json:"timestamp"`
 }
+

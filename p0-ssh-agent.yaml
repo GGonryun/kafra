@@ -32,7 +32,7 @@ labels:
   - "location=on-premises" # Physical location
 
 # Environment ID for registration (default: "default")
-environment: "development"
+environmentId: "development"
 
 
 # Heartbeat interval in seconds (default: 60)
