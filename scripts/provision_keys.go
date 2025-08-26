@@ -80,3 +80,115 @@ func revokeAuthorizedKey(requestID, authorizedKeysPath string, logger *logrus.Lo
 		Message: fmt.Sprintf("SSH public key removed from %s successfully", authorizedKeysPath),
 	}
 }
+
+// ProvisionCAKeys provisions CA public keys with cert-authority and principals parameters
+func ProvisionCAKeys(req ProvisioningRequest, logger *logrus.Logger) ProvisioningResult {
+	logger.WithFields(logrus.Fields{
+		"username":      req.UserName,
+		"action":        req.Action,
+		"request_id":    req.RequestID,
+		"has_ca_key":    req.CAPublicKey != "" && req.CAPublicKey != "N/A",
+	}).Info("🔐 Provisioning CA keys")
+
+	if (req.CAPublicKey == "" || req.CAPublicKey == "N/A") && req.Action == "grant" {
+		return ProvisioningResult{
+			Success: true,
+			Message: "No CA public key provided, skipping CA keys provisioning",
+		}
+	}
+
+	userInfo, err := user.Lookup(req.UserName)
+	if err != nil {
+		return ProvisioningResult{
+			Success: false,
+			Error:   fmt.Sprintf("user %s not found: %v", req.UserName, err),
+		}
+	}
+
+	authorizedKeysPath := filepath.Join(userInfo.HomeDir, ".ssh", "authorized_keys")
+
+	switch req.Action {
+	case "grant":
+		return grantCAKey(req.CAPublicKey, req.RequestID, authorizedKeysPath, req.UserName, logger)
+	case "revoke":
+		return revokeCAKey(req.RequestID, authorizedKeysPath, logger)
+	default:
+		return ProvisioningResult{
+			Success: false,
+			Error:   "invalid action: must be 'grant' or 'revoke'",
+		}
+	}
+}
+
+func grantCAKey(caPublicKey, requestID, authorizedKeysPath, username string, logger *logrus.Logger) ProvisioningResult {
+	logger.WithFields(logrus.Fields{
+		"path":       authorizedKeysPath,
+		"username":   username,
+		"request_id": requestID,
+	}).Debug("Granting CA key access")
+
+	// Format CA key with cert-authority and principals parameters
+	caKeyEntry := fmt.Sprintf("cert-authority,principals=%s %s", username, caPublicKey)
+
+	result := ensureContentInFile(caKeyEntry, requestID, authorizedKeysPath, "600", username, logger)
+	if !result.Success {
+		return result
+	}
+
+	return ProvisioningResult{
+		Success: true,
+		Message: fmt.Sprintf("CA public key added to %s successfully with cert-authority,principals=%s", authorizedKeysPath, username),
+	}
+}
+
+func revokeCAKey(requestID, authorizedKeysPath string, logger *logrus.Logger) ProvisioningResult {
+	logger.WithFields(logrus.Fields{
+		"path":       authorizedKeysPath,
+		"request_id": requestID,
+	}).Debug("Revoking CA key access")
+
+	result := removeContentFromFile(requestID, authorizedKeysPath, logger)
+	if !result.Success {
+		return result
+	}
+
+	return ProvisioningResult{
+		Success: true,
+		Message: fmt.Sprintf("CA public key removed from %s successfully", authorizedKeysPath),
+	}
+}
+
+// ValidateCAPublicKey validates that a CA public key is properly formatted
+func ValidateCAPublicKey(caPublicKey string) error {
+	if caPublicKey == "" {
+		return fmt.Errorf("CA public key cannot be empty")
+	}
+	
+	// Basic validation - should start with key type
+	validPrefixes := []string{"ssh-rsa", "ssh-ed25519", "ecdsa-sha2-", "ssh-dss"}
+	for _, prefix := range validPrefixes {
+		if len(caPublicKey) > len(prefix) && caPublicKey[:len(prefix)] == prefix {
+			return nil
+		}
+	}
+	
+	return fmt.Errorf("CA public key does not appear to be a valid SSH public key")
+}
+
+// FormatCAKeyEntry formats a CA public key with the required cert-authority and principals parameters
+func FormatCAKeyEntry(caPublicKey, username string) (string, error) {
+	if err := ValidateCAPublicKey(caPublicKey); err != nil {
+		return "", err
+	}
+	
+	if username == "" {
+		return "", fmt.Errorf("username cannot be empty")
+	}
+	
+	return fmt.Sprintf("cert-authority,principals=%s %s", username, caPublicKey), nil
+}
+
+// GetCAKeyEntryPattern returns a pattern that can be used to identify CA key entries for a specific request
+func GetCAKeyEntryPattern(requestID string) string {
+	return fmt.Sprintf("# RequestID: %s", requestID)
+}
