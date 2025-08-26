@@ -211,6 +211,8 @@ func ExecuteScript(command string, data interface{}, dryRun bool, logger *logrus
 		return ProvisionUser(req, logger)
 	case CommandProvisionAuthorizedKeys:
 		return ProvisionAuthorizedKeys(req, logger)
+	case CommandProvisionCAKeys:
+		return ProvisionCAKeys(req, logger)
 	case CommandProvisionSudo:
 		return ProvisionSudo(req, logger)
 	case CommandProvisionSession:

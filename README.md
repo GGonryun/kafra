@@ -16,30 +16,34 @@ A comprehensive SSH access management tool for on-premises nodes that connects t
 
 ## Quick Start (On-Premises Setup)
 
-### Recommended Installation Process
+### Automatic Registration Process
 
-The complete setup process for P0 SSH Agent on an on-premises node:
+The complete setup process for P0 SSH Agent with automatic registration:
 
 ```bash
-# 1. Download or build the binary
+# 1. Download the binary
 wget https://releases.p0.com/p0-ssh-agent/latest/p0-ssh-agent-linux-amd64
 chmod +x p0-ssh-agent-linux-amd64
 mv p0-ssh-agent-linux-amd64 p0-ssh-agent
 
-# 2. Install system components (copies binary, creates service, generates keys)
-sudo ./p0-ssh-agent install
+# 2. Run automatic registration (this does everything: install, configure, register)
+sudo ./p0-ssh-agent register \
+  --auth "your-bearer-token" \
+  --url "https://p0.dev/o/<org-id>/integrations/self-hosted/computers/<environment-id>/register"
 
-# 3. Configure your organization settings
-sudo vi /etc/p0-ssh-agent/config.yaml
-# Update: orgId, hostId, tunnelHost
-
-# 4. Register with P0 backend (generates registration code)
-sudo p0-ssh-agent register --config /etc/p0-ssh-agent/config.yaml
-
-# 5. After registration approval, start the service
+# 3. Start the service
 sudo systemctl enable p0-ssh-agent
 sudo systemctl start p0-ssh-agent
 ```
+
+The `register` command automatically:
+- Installs the binary to `/usr/local/bin/p0-ssh-agent`
+- Creates configuration directories and service files
+- Generates JWT keys for authentication
+- Sends registration request to P0 backend
+- Receives and saves configuration (orgId, hostId, tunnelHost, environmentId)
+- Configures SSH daemon to trust P0's CA certificate
+- Sets up systemd service
 
 ### Method 2: Manual Build and Setup
 
@@ -88,7 +92,7 @@ labels:
   - "environment=production" # Machine labels for identification
   - "team=infrastructure"
   - "region=us-west-2"
-environment: "production" # Environment identifier
+environmentId: "production" # Environment identifier
 ```
 
 #### 3. Register with Backend
@@ -177,45 +181,45 @@ Generate machine registration request for P0 backend.
 | ---------- | ---------------------------- | ------- |
 | `--output` | Output format (json or yaml) | `json`  |
 
-### `install` - Install as Systemd Service
+### `register` - Automatic Registration and Installation
 
-Complete P0 SSH Agent installation as a systemd service with full setup.
+Complete P0 SSH Agent installation and registration with P0 backend.
 
 **Usage:**
 
 ```bash
-sudo p0-ssh-agent install
+sudo p0-ssh-agent register --auth "bearer-token" --url "registration-url"
 ```
 
-| Flag             | Description                  | Default        |
-| ---------------- | ---------------------------- | -------------- |
-| `--service-name` | Name for the systemd service | `p0-ssh-agent` |
-| `--user`         | User to run the service as   | `p0-agent`     |
+| Flag             | Description                     | Default        |
+| ---------------- | ------------------------------- | -------------- |
+| `--auth`         | Bearer token for authentication | (required)     |
+| `--url`          | Registration URL                | (required)     |
+| `--service-name` | Name for the systemd service   | `p0-ssh-agent` |
+| `--allow-root`   | Allow installation as root     | `false`        |
 
 **What it does (comprehensive setup):**
 
 - Copies binary to system location (`/usr/local/bin/p0-ssh-agent`)
-- Creates configuration directory and default config file
-- Creates service user (`p0-agent`)
-- Creates directories with proper permissions
+- Creates configuration directory and service files
 - Generates JWT keys automatically
-- Creates systemd service file (not started)
-- **NixOS**: Creates NixOS module at `/etc/nixos/p0-ssh-agent.nix`
-- Provides instructions for configuration and registration
+- Sends registration request to P0 backend with machine information
+- Receives and saves configuration from backend (orgId, hostId, tunnelHost, etc.)
+- Configures SSH daemon to trust P0's CA certificate
+- Creates systemd service file (ready to start)
+- Provides instructions for starting the service
 
-**After installation, you must:**
-1. Edit the configuration file with your settings
-2. Run the register command to get your registration code
-3. Start the service after approval
+**After automatic registration, simply:**
+1. Start the service: `sudo systemctl enable p0-ssh-agent && sudo systemctl start p0-ssh-agent`
 
 **Perfect for production on-premises deployments.**
 
-#### NixOS Installation
+#### NixOS Registration
 
-For NixOS systems, the install command provides special handling:
+For NixOS systems, the register command provides special handling:
 
 ```bash
-sudo ./p0-ssh-agent install
+sudo ./p0-ssh-agent register --auth "bearer-token" --url "registration-url"
 ```
 
 **NixOS-specific setup:**
@@ -318,15 +322,10 @@ Execute provisioning scripts directly for testing and validation.
 **Complete automated setup:**
 
 ```bash
-# 1. Install system components (creates everything needed)
-sudo ./p0-ssh-agent install
-
-# 2. Edit configuration with your details
-sudo vi /etc/p0-ssh-agent/config.yaml
-# Update: orgId, hostId, tunnelHost
-
-# 3. Register with P0 backend
-sudo p0-ssh-agent register --config /etc/p0-ssh-agent/config.yaml
+# 1. Run automatic registration (creates everything needed)
+sudo ./p0-ssh-agent register \
+  --auth "your-bearer-token" \
+  --url "https://p0.dev/o/<org-id>/integrations/self-hosted/computers/<environment-id>/register"
 
 # 4. After approval, start the service
 sudo systemctl enable p0-ssh-agent
@@ -349,7 +348,7 @@ orgId: "my-company"
 hostId: "$(hostname)"
 tunnelHost: "wss://p0.example.com/websocket"
 keyPath: "/etc/p0-ssh-agent/keys"
-environment: "production"
+environmentId: "production"
 tunnelTimeoutMs: 30000
 EOF
 
@@ -621,7 +620,7 @@ tunnelHost: "wss://api.p0.app" # WebSocket URL (ws:// or wss://)
 # Optional fields
 hostname: "custom-hostname" # Override system hostname (optional)
 keyPath: "/path/to/keys" # JWT key storage directory
-environment: "production" # Environment identifier
+environmentId: "production" # Environment identifier
 heartbeatIntervalSeconds: 60 # Heartbeat interval in seconds (default: 60)
 dryRun: false # Enable dry-run mode globally
 

@@ -90,28 +90,6 @@ func (p *LinuxPlugin) SetupDirectories(dirs []string, owner string, logger *logr
 	return nil
 }
 
-func (p *LinuxPlugin) GetSystemInfo() map[string]string {
-	info := make(map[string]string)
-	info["os"] = "linux"
-	info["package_manager"] = "unknown"
-	info["config_method"] = "traditional"
-
-	// Try to detect distribution
-	if content, err := os.ReadFile("/etc/os-release"); err == nil {
-		lines := strings.Split(string(content), "\n")
-		for _, line := range lines {
-			if strings.HasPrefix(line, "ID=") {
-				info["distribution"] = strings.Trim(strings.TrimPrefix(line, "ID="), "\"")
-			}
-			if strings.HasPrefix(line, "VERSION_ID=") {
-				info["version"] = strings.Trim(strings.TrimPrefix(line, "VERSION_ID="), "\"")
-			}
-		}
-	}
-
-	return info
-}
-
 func (p *LinuxPlugin) generateSystemdService(serviceName, executablePath, configPath string) string {
 	workingDir := filepath.Dir(configPath)
 
@@ -284,8 +262,13 @@ func (p *LinuxPlugin) DisplayInstallationSuccess(serviceName, configPath string,
 	}
 
 	fmt.Println("\n🐧 Linux Installation Complete!")
-	fmt.Println("\n1. Configure: vi /etc/p0-ssh-agent/config.yaml")
-	fmt.Println("2. Register: ./p0-ssh-agent register")
+	fmt.Println("\nStart the service:")
+	fmt.Printf("  • Start service:     sudo systemctl start %s\n", serviceName)
+	fmt.Printf("  • Enable on boot:    sudo systemctl enable %s\n", serviceName)
+	fmt.Printf("  • Check status:      sudo systemctl status %s\n", serviceName)
+	fmt.Printf("  • Restart service:   sudo systemctl restart %s\n", serviceName)
+	fmt.Printf("  • Live logs:         sudo journalctl -f -u %s\n", serviceName)
+	fmt.Printf("  • All logs:          sudo journalctl -u %s\n", serviceName)
 }
 
 func (p *LinuxPlugin) DisplayUninstallationSuccess(hasErrors bool, errors []error) {
@@ -314,7 +297,6 @@ func (p *LinuxPlugin) DisplayUninstallationSuccess(hasErrors bool, errors []erro
 		fmt.Println("💡 Check: ls -la /etc/p0-ssh-agent/")
 	} else {
 		fmt.Println("\n🎉 P0 SSH Agent has been completely removed from your system")
-		fmt.Println("💡 You can safely reinstall anytime with: ./p0-ssh-agent install")
 	}
 
 	fmt.Println("\n" + strings.Repeat("=", 60))

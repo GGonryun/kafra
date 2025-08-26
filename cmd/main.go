@@ -6,7 +6,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"p0-ssh-agent/cmd/command"
-	"p0-ssh-agent/cmd/install"
 	"p0-ssh-agent/cmd/jwt"
 	"p0-ssh-agent/cmd/keygen"
 	"p0-ssh-agent/cmd/register"
@@ -37,7 +36,6 @@ func init() {
 	rootCmd.AddCommand(keygen.NewKeygenCommand(&verbose, &configPath))
 	rootCmd.AddCommand(jwt.NewJWTCommand(&verbose, &configPath))
 	rootCmd.AddCommand(register.NewRegisterCommand(&verbose, &configPath))
-	rootCmd.AddCommand(install.NewInstallCommand(&verbose, &configPath))
 	rootCmd.AddCommand(uninstall.NewUninstallCommand(&verbose, &configPath))
 	rootCmd.AddCommand(status.NewStatusCommand(&verbose, &configPath))
 	rootCmd.AddCommand(command.NewCommandCommand(&verbose, &configPath))
