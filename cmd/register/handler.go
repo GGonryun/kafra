@@ -2,7 +2,6 @@ package register
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
@@ -125,11 +123,8 @@ func runRegister(verbose bool, auth, url, hostname string, labels []string, serv
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
-	// Step 4: Save trusted CA and configure SSH
-	logger.Info("🔐 Step 4: Configuring SSH trusted CA...")
-	if err := configureTrustedCA(response.TrustedCa, logger); err != nil {
-		return fmt.Errorf("failed to configure trusted CA: %w", err)
-	}
+	// Step 4: Registration complete
+	logger.Info("✅ Step 4: Registration completed successfully")
 
 	// Display OS-specific post-registration instructions
 	fmt.Printf("\n✅ Registration successful. Configuration saved to %s\n", configPath)
@@ -263,137 +258,6 @@ dryRun: %t
 	}
 
 	logger.WithField("path", configPath).Info("Configuration saved successfully")
-	return nil
-}
-
-func configureTrustedCA(trustedCA string, logger *logrus.Logger) error {
-	// Save trusted CA to file
-	trustedCAPath := "/etc/p0-ssh-agent/trusted_ca"
-
-	// Decode the base64 encoded trusted CA certificate
-	decodedCA, err := base64.StdEncoding.DecodeString(trustedCA)
-	if err != nil {
-		return fmt.Errorf("failed to decode base64 trusted CA: %w", err)
-	}
-
-	// Create a temporary file first
-	tmpFile, err := os.CreateTemp("", "trusted_ca_*")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
-	// Write decoded trusted CA to temp file
-	if _, err := tmpFile.Write(decodedCA); err != nil {
-		tmpFile.Close()
-		return fmt.Errorf("failed to write trusted CA to temp file: %w", err)
-	}
-	tmpFile.Close()
-
-	// Use sudo to copy the temp file to the final location
-	cmd := exec.Command("sudo", "cp", tmpFile.Name(), trustedCAPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to copy trusted CA file: %w", err)
-	}
-
-	// Set proper permissions
-	cmd = exec.Command("sudo", "chmod", "644", trustedCAPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to set trusted CA file permissions: %w", err)
-	}
-
-	logger.WithField("path", trustedCAPath).Info("Trusted CA saved")
-
-	// Update sshd_config
-	return updateSSHDConfig(trustedCAPath, logger)
-}
-
-func updateSSHDConfig(trustedCAPath string, logger *logrus.Logger) error {
-	sshdConfigPath := "/etc/ssh/sshd_config"
-
-	// Read current sshd_config using sudo
-	cmd := exec.Command("sudo", "cat", sshdConfigPath)
-	content, err := cmd.Output()
-	if err != nil {
-		return fmt.Errorf("failed to read sshd_config: %w", err)
-	}
-
-	lines := strings.Split(string(content), "\n")
-	trustedCALine := fmt.Sprintf("TrustedUserCAKeys %s", trustedCAPath)
-	hasConflicts := false
-
-	// Track conflicting SSH directives that might interfere with P0
-	conflictingDirectives := []string{
-		"TrustedUserCAKeys",
-		"AuthorizedPrincipalsCommand",
-		"AuthorizedPrincipalsCommandUser",
-		"AuthorizedKeysCommand",
-		"AuthorizedKeysCommandUser",
-	}
-
-	// Process each line to handle conflicts
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-
-		// Check for conflicting directives and comment them out
-		for _, directive := range conflictingDirectives {
-			if strings.HasPrefix(trimmed, directive) && !strings.HasPrefix(trimmed, "#") {
-				lines[i] = "# " + line + " # Commented by P0 - potential conflict"
-				hasConflicts = true
-				logger.WithField("directive", directive).Warn("Commented out potentially conflicting SSH directive")
-				break
-			}
-		}
-	}
-
-	// Always add our TrustedUserCAKeys at the end
-	lines = append(lines, trustedCALine)
-	logger.Info("Added TrustedUserCAKeys to sshd_config")
-
-	// Add warning comment if conflicts were found
-	if hasConflicts {
-		lines = append(lines, "")
-		lines = append(lines, "# P0 SSH Agent - Conflicting directives were commented out above")
-		lines = append(lines, "# Review the commented lines and adjust as needed for your environment")
-		fmt.Printf("\n⚠️  WARNING: Found potentially conflicting SSH directives that were commented out.\n")
-		fmt.Printf("   Please review %s for commented lines marked with '# Commented by P0'.\n", sshdConfigPath)
-		fmt.Printf("   You may need to adjust these settings for your specific environment.\n")
-	}
-
-	// Create temporary file for new config
-	tmpFile, err := os.CreateTemp("", "sshd_config_*")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
-	// Write new content to temp file
-	newContent := strings.Join(lines, "\n")
-	if _, err := tmpFile.WriteString(newContent); err != nil {
-		tmpFile.Close()
-		return fmt.Errorf("failed to write to temporary file: %w", err)
-	}
-	tmpFile.Close()
-
-	// Copy temp file to sshd_config using sudo
-	cmd = exec.Command("sudo", "cp", tmpFile.Name(), sshdConfigPath)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to update sshd_config: %w", err)
-	}
-
-	// Test sshd configuration using sudo
-	cmd = exec.Command("sudo", "sshd", "-t")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("sshd configuration test failed: %w", err)
-	}
-
-	logger.Info("SSH daemon configuration updated and tested successfully")
-
-	// Remind user to restart sshd
-	fmt.Printf("\n🚨 IMPORTANT: Restart SSH daemon to apply changes:\n")
-	fmt.Printf("   sudo systemctl restart sshd\n")
-	fmt.Printf("   # or: sudo service ssh restart\n")
-
 	return nil
 }
 
