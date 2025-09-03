@@ -92,7 +92,7 @@ func ProvisionCAKeys(req ProvisioningRequest, logger *logrus.Logger) Provisionin
 
 	if (req.CAPublicKey == "" || req.CAPublicKey == "N/A") && req.Action == "grant" {
 		return ProvisioningResult{
-			Success: true,
+			Success: false,
 			Message: "No CA public key provided, skipping CA keys provisioning",
 		}
 	}
@@ -137,7 +137,7 @@ func grantCAKey(caPublicKey, requestID, authorizedKeysPath, username string, log
 
 	return ProvisioningResult{
 		Success: true,
-		Message: fmt.Sprintf("CA public key added to %s successfully with cert-authority,principals=\"%s\"", authorizedKeysPath, username),
+		Message: fmt.Sprintf("CA public key added to %s successfully with %s", authorizedKeysPath, caKeyEntry),
 	}
 }
 
@@ -173,22 +173,4 @@ func ValidateCAPublicKey(caPublicKey string) error {
 	}
 
 	return fmt.Errorf("CA public key does not appear to be a valid SSH public key")
-}
-
-// FormatCAKeyEntry formats a CA public key with the cert-authority and properly quoted principals
-func FormatCAKeyEntry(caPublicKey, username string) (string, error) {
-	if err := ValidateCAPublicKey(caPublicKey); err != nil {
-		return "", err
-	}
-
-	if username == "" {
-		return "", fmt.Errorf("username cannot be empty")
-	}
-
-	return fmt.Sprintf("cert-authority,principals=\"%s\" %s", username, caPublicKey), nil
-}
-
-// GetCAKeyEntryPattern returns a pattern that can be used to identify CA key entries for a specific request
-func GetCAKeyEntryPattern(requestID string) string {
-	return fmt.Sprintf("# RequestID: %s", requestID)
 }
