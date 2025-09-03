@@ -8,7 +8,6 @@ A comprehensive SSH access management tool for on-premises nodes that connects t
 - **WebSocket Communication**: Secure WebSocket connections with JSON-RPC 2.0 protocol
 - **SSH Provisioning**: Automated user, SSH key, and sudo access management
 - **Dry-Run Mode**: Safe testing without making actual system changes
-- **Systemd Integration**: Automated service installation and management
 - **Command Testing**: Direct script execution for validation
 - **Automatic Reconnection**: Exponential backoff retry mechanism for connection failures
 - **Enhanced Debugging**: Detailed HTTP status code logging for WebSocket connection issues
@@ -16,9 +15,9 @@ A comprehensive SSH access management tool for on-premises nodes that connects t
 
 ## Quick Start (On-Premises Setup)
 
-### Automatic Registration Process
+### Manual Setup Process
 
-The complete setup process for P0 SSH Agent with automatic registration:
+The setup process for P0 SSH Agent:
 
 ```bash
 # 1. Download the binary
@@ -26,24 +25,15 @@ wget https://releases.p0.com/p0-ssh-agent/latest/p0-ssh-agent-linux-amd64
 chmod +x p0-ssh-agent-linux-amd64
 mv p0-ssh-agent-linux-amd64 p0-ssh-agent
 
-# 2. Run automatic registration (this does everything: install, configure, register)
-sudo ./p0-ssh-agent register \
-  --auth "your-bearer-token" \
-  --url "https://p0.dev/o/<org-id>/integrations/self-hosted/computers/<environment-id>/register"
+# 2. Generate JWT keys
+./p0-ssh-agent keygen
 
-# 3. Start the service
-sudo systemctl enable p0-ssh-agent
-sudo systemctl start p0-ssh-agent
+# 3. Create configuration file (see Configuration File Format section)
+# Edit config.yaml with your organization settings
+
+# 4. Start the agent
+./p0-ssh-agent start --config config.yaml
 ```
-
-The `register` command automatically:
-- Installs the binary to `/usr/local/bin/p0-ssh-agent`
-- Creates configuration directories and service files
-- Generates JWT keys for authentication
-- Sends registration request to P0 backend
-- Receives and saves configuration (orgId, hostId, tunnelHost, environmentId)
-- Configures SSH daemon to trust P0's CA certificate
-- Sets up systemd service
 
 ### Method 2: Manual Build and Setup
 
@@ -64,10 +54,10 @@ The binary will be created as `dist/p0-ssh-agent`.
 
 ```bash
 # Generate keys in current directory
-./dist/p0-ssh-agent keygen
+p0-ssh-agent keygen
 
 # Or specify a custom path
-./dist/p0-ssh-agent keygen --key-path ~/.p0/keys
+p0-ssh-agent keygen --key-path ~/.p0/keys
 ```
 
 The keygen command will:
@@ -100,17 +90,17 @@ environmentId: "production" # Environment identifier
 Generate a registration request:
 
 ```bash
-./dist/p0-ssh-agent register --config config.yaml
+p0-ssh-agent register --config config.yaml
 ```
 
 #### 4. Start the Agent
 
 ```bash
 # Using configuration file
-./dist/p0-ssh-agent start --config config.yaml
+p0-ssh-agent start --config config.yaml
 
 # Or with command line flags
-./dist/p0-ssh-agent start \
+p0-ssh-agent start \
   --org-id my-company \
   --host-id hostname-goes-here \
   --tunnel-host wss://p0.example.com/websocket \
@@ -138,7 +128,6 @@ For on-premises nodes, these fields are **mandatory**:
 - **JWT Keys**: Stored locally on the node, never transmitted
 - **Secure Transport**: Always use `wss://` (secure WebSocket) for production
 - **File Permissions**: Key files automatically set to 600/700 permissions
-- **Service User**: Runs as dedicated `p0-agent` user (created during install)
 
 ## Available Commands
 
@@ -147,7 +136,6 @@ All commands support these global flags:
 |------|-------------|---------|
 | `-c, --config` | Path to configuration file | - |
 | `-v, --verbose` | Enable verbose logging | `false` |
-
 
 ### `start` - Start the SSH Agent
 
@@ -181,100 +169,6 @@ Generate machine registration request for P0 backend.
 | ---------- | ---------------------------- | ------- |
 | `--output` | Output format (json or yaml) | `json`  |
 
-### `register` - Automatic Registration and Installation
-
-Complete P0 SSH Agent installation and registration with P0 backend.
-
-**Usage:**
-
-```bash
-sudo p0-ssh-agent register --auth "bearer-token" --url "registration-url"
-```
-
-| Flag             | Description                     | Default        |
-| ---------------- | ------------------------------- | -------------- |
-| `--auth`         | Bearer token for authentication | (required)     |
-| `--url`          | Registration URL                | (required)     |
-| `--service-name` | Name for the systemd service   | `p0-ssh-agent` |
-| `--allow-root`   | Allow installation as root     | `false`        |
-
-**What it does (comprehensive setup):**
-
-- Copies binary to system location (`/usr/local/bin/p0-ssh-agent`)
-- Creates configuration directory and service files
-- Generates JWT keys automatically
-- Sends registration request to P0 backend with machine information
-- Receives and saves configuration from backend (orgId, hostId, tunnelHost, etc.)
-- Configures SSH daemon to trust P0's CA certificate
-- Creates systemd service file (ready to start)
-- Provides instructions for starting the service
-
-**After automatic registration, simply:**
-1. Start the service: `sudo systemctl enable p0-ssh-agent && sudo systemctl start p0-ssh-agent`
-
-**Perfect for production on-premises deployments.**
-
-#### NixOS Registration
-
-For NixOS systems, the register command provides special handling:
-
-```bash
-sudo ./p0-ssh-agent register --auth "bearer-token" --url "registration-url"
-```
-
-**NixOS-specific setup:**
-- Creates NixOS module in system modules path
-- Module contains systemd service definition with correct paths
-- Installs module to `/etc/nixos/modules/jit/` for easy import
-
-**After installation, add to your `/etc/nixos/configuration.nix`:**
-
-```nix
-{
-  imports = [
-    # ... your existing imports ...
-    ./modules/jit/p0-ssh-agent.nix
-  ];
-
-  services.p0-ssh-agent.enable = true;
-}
-```
-
-Then rebuild your system:
-```bash
-sudo nixos-rebuild switch
-```
-
-**Configuration**: Edit `/etc/p0-ssh-agent/config.yaml` (same as other platforms)
-
-### `uninstall` - Completely Remove Installation
-
-Remove all P0 SSH Agent components from the system.
-
-**Usage:**
-
-```bash
-sudo p0-ssh-agent uninstall
-```
-
-| Flag             | Description                    | Default        |
-| ---------------- | ------------------------------ | -------------- |
-| `--service-name` | Name of systemd service        | `p0-ssh-agent` |
-| `--user`         | Service user to remove         | `p0-agent`     |
-| `--force`        | Skip confirmation prompts     | `false`        |
-
-**What it removes:**
-
-- Stops and disables systemd service
-- Removes service files and configuration
-- Removes service user and home directory
-- Removes configuration directory (`/etc/p0-ssh-agent/`)
-- Removes log directory (`/var/log/p0-ssh-agent/`)
-- Removes system binary (`/usr/local/bin/p0-ssh-agent`)
-- Cleans up all installation artifacts
-
-**⚠️ WARNING:** This permanently deletes all configuration, keys, and logs.
-
 ### `status` - Check Installation Status
 
 Comprehensive health check of your P0 SSH Agent installation.
@@ -283,16 +177,12 @@ Comprehensive health check of your P0 SSH Agent installation.
 
 ```bash
 p0-ssh-agent status
-sudo p0-ssh-agent status  # For full system check
 ```
 
 **Validates:**
 
 - Configuration file validity
-- Service user existence and permissions
 - JWT key presence and validity
-- Log file accessibility
-- Systemd service status
 - Directory permissions and ownership
 
 ### `command` - Execute Provisioning Scripts
@@ -317,29 +207,13 @@ Execute provisioning scripts directly for testing and validation.
 
 ## Usage Examples
 
-### On-Premises Node Setup (Recommended)
+### On-Premises Node Setup
 
-**Complete automated setup:**
-
-```bash
-# 1. Run automatic registration (creates everything needed)
-sudo ./p0-ssh-agent register \
-  --auth "your-bearer-token" \
-  --url "https://p0.dev/o/<org-id>/integrations/self-hosted/computers/<environment-id>/register"
-
-# 4. After approval, start the service
-sudo systemctl enable p0-ssh-agent
-sudo systemctl start p0-ssh-agent
-
-# 5. Check status
-sudo p0-ssh-agent status
-```
-
-**Manual setup (if needed):**
+**Manual setup (recommended):**
 
 ```bash
 # 1. Generate JWT keys
-./dist/p0-ssh-agent keygen --key-path ~/.p0/keys
+p0-ssh-agent keygen --key-path ~/.p0/keys
 
 # 2. Create configuration file
 cat > config.yaml << EOF
@@ -353,17 +227,17 @@ tunnelTimeoutMs: 30000
 EOF
 
 # 3. Generate registration request
-./dist/p0-ssh-agent register --config config.yaml
+p0-ssh-agent register --config config.yaml
 
 # 4. Start the agent
-./dist/p0-ssh-agent start --config config.yaml --verbose
+p0-ssh-agent start --config config.yaml --verbose
 ```
 
 ### Command Line Usage
 
 ```bash
 # Start with individual flags
-./dist/p0-ssh-agent start \
+p0-ssh-agent start \
   --org-id my-company \
   --host-id hostname-goes-here \
   --tunnel-host wss://p0.example.com/websocket \
@@ -371,33 +245,33 @@ EOF
   --verbose
 
 # Start with dry-run mode (safe testing)
-./dist/p0-ssh-agent start --config config.yaml --dry-run
+p0-ssh-agent start --config config.yaml --dry-run
 
 # Force regenerate keys (dangerous!)
-./dist/p0-ssh-agent keygen --key-path ~/.p0/keys --force
+p0-ssh-agent keygen --key-path ~/.p0/keys --force
 
-# Check node status and health
-p0-ssh-agent status --verbose
+# Check configuration validity
+p0-ssh-agent --help
 ```
 
 ### Testing and Validation
 
 ```bash
 # Test user provisioning
-./dist/p0-ssh-agent command \
+p0-ssh-agent command \
   --command provisionUser \
   --username testuser \
   --dry-run
 
 # Test SSH key provisioning
-./dist/p0-ssh-agent command \
+p0-ssh-agent command \
   --command provisionAuthorizedKeys \
   --username testuser \
   --public-key "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC7..." \
   --dry-run
 
 # Test sudo access
-./dist/p0-ssh-agent command \
+p0-ssh-agent command \
   --command provisionSudo \
   --username testuser \
   --sudo \
@@ -405,7 +279,7 @@ p0-ssh-agent status --verbose
   --dry-run
 
 # Test revoke operations
-./dist/p0-ssh-agent command \
+p0-ssh-agent command \
   --command provisionUser \
   --username testuser \
   --action revoke \
@@ -414,48 +288,32 @@ p0-ssh-agent status --verbose
 
 ### Production On-Premises Deployment
 
-**Recommended approach (install → configure → register → start):**
+**Manual setup approach:**
 
 ```bash
-# 1. Install system components (copies binary, creates config template)
-sudo ./p0-ssh-agent install
+# 1. Generate JWT keys
+p0-ssh-agent keygen --key-path ~/.p0/keys
 
-# 2. Edit configuration with your organization settings
-sudo vi /etc/p0-ssh-agent/config.yaml
+# 2. Create configuration file
+vi config.yaml
 
-# 3. Register with P0 backend (provides registration code)
-sudo p0-ssh-agent register --config /etc/p0-ssh-agent/config.yaml
+# 3. Generate registration request
+p0-ssh-agent register --config config.yaml
 
-# 4. After approval, start the service
-sudo systemctl enable p0-ssh-agent
-sudo systemctl start p0-ssh-agent
-```
-
-**Manual approach:**
-
-```bash
-# Install as systemd service manually
-sudo ./dist/p0-ssh-agent install \
-  --service-name p0-ssh-agent \
-  --user p0-agent
-
-# Check installation health
-sudo p0-ssh-agent status
-
-# Completely remove P0 SSH Agent
-sudo p0-ssh-agent uninstall
+# 4. Start the agent
+p0-ssh-agent start --config config.yaml
 ```
 
 ### Help and Documentation
 
 ```bash
 # Show help for main command
-./dist/p0-ssh-agent --help
+p0-ssh-agent --help
 
 # Show help for specific subcommands
-./dist/p0-ssh-agent start --help
-./dist/p0-ssh-agent install --help
-./dist/p0-ssh-agent status --help
+p0-ssh-agent start --help
+p0-ssh-agent keygen --help
+p0-ssh-agent register --help
 ```
 
 ## Architecture
@@ -491,8 +349,6 @@ The p0-ssh-agent binary includes multiple subcommands:
 - `start` - Start the WebSocket proxy agent
 - `keygen` - Generate JWT keypair for authentication
 - `register` - Generate machine registration request
-- `install` - Complete systemd service installation
-- `uninstall` - Completely remove P0 SSH Agent installation
 - `status` - Check installation health and status
 - `command` - Execute provisioning scripts directly
 - `help` - Show help information
@@ -526,10 +382,10 @@ make help      # Show all available targets
 
 ```bash
 # Generate keys first
-./dist/p0-ssh-agent keygen --key-path ~/.p0/keys
+p0-ssh-agent keygen --key-path ~/.p0/keys
 
 # Then run agent
-./dist/p0-ssh-agent start --org-id my-org --host-id my-host --key-path ~/.p0/keys
+p0-ssh-agent start --org-id my-org --host-id my-host --key-path ~/.p0/keys
 ```
 
 **Permission denied errors:**
@@ -540,7 +396,7 @@ mkdir -p ~/.p0/keys
 chmod 700 ~/.p0/keys
 
 # Generate keys there
-./dist/p0-ssh-agent keygen --key-path ~/.p0/keys
+p0-ssh-agent keygen --key-path ~/.p0/keys
 ```
 
 ### Debug Logging
@@ -548,7 +404,7 @@ chmod 700 ~/.p0/keys
 Enable verbose logging to see detailed connection information:
 
 ```bash
-./dist/p0-ssh-agent start --config config.yaml --verbose
+p0-ssh-agent start --config config.yaml --verbose
 ```
 
 This shows:
@@ -570,29 +426,9 @@ make install
 p0-ssh-agent start --config /etc/p0-ssh-agent/config.yaml
 ```
 
-### Systemd Service (Automated)
+### Systemd Service (Manual)
 
-Use the built-in install command for automated systemd setup:
-
-```bash
-# After bootstrap, complete installation automatically
-sudo p0-ssh-agent install
-
-# Or with custom options
-sudo p0-ssh-agent install \
-  --service-name p0-ssh-agent \
-  --user p0-agent
-
-# Verify installation
-sudo p0-ssh-agent status
-```
-
-The install command automatically:
-
-- Generates systemd service file with security hardening
-- Creates working directories with proper permissions
-- Provides step-by-step installation instructions
-- Includes service management commands
+For manual systemd service setup, create your own service file based on your system requirements and configuration.
 
 ## Security Notes
 
@@ -602,8 +438,6 @@ The install command automatically:
 - **File Permissions**: Key files should have restrictive permissions (600/700)
 - **Transport Security**: Use `wss://` (secure WebSocket) for production deployments
 - **Dry-Run Mode**: Test commands safely without making system changes
-- **Systemd Hardening**: Install command includes security settings like `NoNewPrivileges`, `ProtectSystem=strict`
-- **Privilege Separation**: Service runs as dedicated non-root user
 - **Provisioning Safety**: All script operations are logged and can be tested in dry-run mode
 
 ## Configuration File Format
